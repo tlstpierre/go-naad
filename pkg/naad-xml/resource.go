@@ -3,6 +3,7 @@ package naadxml
 import (
 	"encoding/base64"
 	"encoding/xml"
+	log "github.com/sirupsen/logrus"
 	// "fmt"
 	"io"
 	// "strconv"
@@ -46,4 +47,5 @@ func (r *Resource) Fetch() error {
 	}
 
 	// TODO fetch the content here
+	return nil
 }
