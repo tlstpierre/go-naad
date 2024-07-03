@@ -20,3 +20,10 @@
 # Go workspace file
 go.work
 go.work.sum
+
+# Annoying MacOS stuff
+.DS_Store
+
+# Assets during testing
+*.mp3
+*.jpg
