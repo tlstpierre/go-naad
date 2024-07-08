@@ -75,6 +75,8 @@ func (r *Receiver) listen() {
 				log.Error(err)
 				if err.Error() == "EOF" {
 					r.socket.Close()
+					log.Warnf("Connection to %s closed", r.host)
+					time.Sleep(5 * time.Second)
 					log.Infof("Attempting to re-connect to host %s", r.host)
 					r.Connect()
 					return
