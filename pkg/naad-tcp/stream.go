@@ -50,6 +50,7 @@ func (r *Receiver) Connect() error {
 }
 
 func (r *Receiver) Disconnect() {
+	r.socket.Close()
 	r.cancelFunc()
 	r.wg.Wait()
 }
@@ -82,7 +83,8 @@ func (r *Receiver) listen() {
 					return
 				}
 			} else {
-				log.Infof("Decoded alert ID %s - type %s", alert.Identifier, alert.MsgType)
+				log.Debugf("Decoded alert ID %s - type %s", alert.Identifier, alert.MsgType)
+				alert.Receiver = r.host
 				if r.handler != nil {
 					err = r.handler(alert)
 					if err != nil {
