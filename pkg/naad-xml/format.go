@@ -2,13 +2,13 @@ package naadxml
 
 import (
 	"encoding/xml"
-	"github.com/google/uuid"
 	"time"
 )
 
 type Alert struct {
 	XMLName    xml.Name     `xml:"alert"`
-	Identifier uuid.UUID    `xml:"identifier"`
+	Receiver   string       `xml:"-"`
+	Identifier string       `xml:"identifier"`
 	Sender     string       `xml:"sender"`
 	Sent       time.Time    `xml:"sent"`
 	Status     AlertStatus  `xml:"status"`

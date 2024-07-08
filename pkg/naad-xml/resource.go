@@ -51,6 +51,7 @@ func (r *Resource) Fetch() error {
 	}
 
 	// TODO fetch the content here
+	log.Infof("Fetching resource %+v", r)
 	resp, err := http.Get(r.URI)
 	if err != nil {
 		return err
@@ -69,8 +70,6 @@ func (r *Resource) Fetch() error {
 	r.URI = strings.TrimPrefix(r.URI, "http:/")
 	r.URI = strings.TrimPrefix(r.URI, "https:/")
 	r.URI = filepath.Base(r.URI)
-	log.Infof("URI is %s", r.URI)
-	r.URI = "test.mp3"
 	log.Infof("URI is %s", r.URI)
 
 	return nil

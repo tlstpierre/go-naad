@@ -5,6 +5,7 @@ import (
 	"fmt"
 	//	"github.com/google/uuid"
 	"io"
+	"net/http"
 	"strings"
 	"time"
 )
@@ -63,4 +64,23 @@ func addSubstitution(input string) string {
 	input = strings.ReplaceAll(input, "+", "p")
 	input = strings.ReplaceAll(input, ":", "_")
 	return input
+}
+
+func (r Reference) Fetch(client *http.Client, server string) (*Alert, error) {
+	url := r.URL(server)
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("Could not retrieve message ref %s - %v", r.Identifier, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("Error from archive server fetching ref %s - %s", r.Identifier, resp.Status)
+	}
+	decoder := xml.NewDecoder(resp.Body)
+	alert := new(Alert)
+	err = decoder.Decode(alert)
+	if err != nil {
+		return nil, fmt.Errorf("Could not decode retrieved reference %s from %s - %v", r.Identifier, url, err)
+	}
+	return alert, nil
 }
