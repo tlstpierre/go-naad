@@ -52,7 +52,8 @@ func TestSample2(t *testing.T) {
 		t.Errorf("Problem decoding sample 2 - %v", err)
 		return
 	}
-	spew.Dump(testAlert)
+	testAlert.GetLayers()
+	// spew.Dump(testAlert)
 }
 
 func TestSample3(t *testing.T) {
@@ -132,4 +133,26 @@ func TestSample7(t *testing.T) {
 		return
 	}
 	spew.Dump(testAlert)
+}
+
+func TestProcess(t *testing.T) {
+	data, err := os.ReadFile(*testData + "Sample1_CAPCP_No_Attachment.xml")
+	if err != nil {
+		log.Fatalf("Could not open test XML file - %v", err)
+	}
+	var testAlert Alert
+	err = xml.Unmarshal(data, &testAlert)
+	if err != nil {
+		t.Fail()
+		t.Errorf("Problem decoding sample 7 - %v", err)
+		return
+	}
+
+	err = testAlert.ProcessAlert()
+	if err != nil {
+		t.Fail()
+		t.Error(err)
+	}
+	spew.Dump(testAlert)
+
 }

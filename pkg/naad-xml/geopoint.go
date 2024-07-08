@@ -9,7 +9,7 @@ import (
 )
 
 type GeoPolygon struct {
-	Perimiter []GeoPoint
+	Perimeter []GeoPoint
 }
 
 type GeoPoint struct {
@@ -27,7 +27,7 @@ func (g *GeoPolygon) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error 
 		switch t.(type) {
 		case xml.CharData:
 			points := strings.Split(string(t.(xml.CharData)), " ")
-			g.Perimiter = make([]GeoPoint, len(points))
+			g.Perimeter = make([]GeoPoint, len(points))
 			for i, point := range points {
 				latStr, lonStr, found := strings.Cut(point, ",")
 				if !found {
@@ -45,7 +45,7 @@ func (g *GeoPolygon) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error 
 					return fmt.Errorf("Problem parsing lon value - %v", err)
 				}
 
-				g.Perimiter[i] = GeoPoint{
+				g.Perimeter[i] = GeoPoint{
 					Lat: lat,
 					Lon: lon,
 				}
