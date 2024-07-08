@@ -6,17 +6,28 @@ import (
 )
 
 type Config struct {
-	Servers  []string `yaml:"servers"`
-	CAPCodes []int    `yaml:"capcodes"`
+	StreamServers  []string `yaml:"streamservers"`
+	ArchiveServers []string `yaml:"archiveservers"`
+	CAPCodes       []int    `yaml:"capcodes"`
+	Lat            float64  `yaml:"lat"`
+	Lon            float64  `yaml:"lon"`
 }
 
 // Initialize a config object with default values
 func (c *Config) Initialize() {
 	*c = Config{
-		Servers: []string{
+		StreamServers: []string{
 			"streaming1.naad-adna.pelmorex.com:8080",
 		},
-		CAPCodes: []int{},
+		ArchiveServers: []string{
+			"capcp1.naad-adna.pelmorex.com",
+		},
+		CAPCodes: []int{
+			3518020, // Scugog
+			3518029, // Uxbridge
+		},
+		Lat: 44.10747,
+		Lon: -78.95514,
 	}
 }
 
