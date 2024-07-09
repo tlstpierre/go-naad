@@ -26,9 +26,9 @@ func (a *Alert) GetLayers() {
 	for _, code := range a.Code {
 		log.Infof("Code is %s", code)
 		parts := strings.Split(code, ":")
-		log.Infof("Parts are %+v", parts)
+		log.Debugf("Parts are %+v", parts)
 		if len(parts) == 3 {
-			log.Infof("Found element %s", parts[0])
+			log.Debugf("Found element %s", parts[0])
 			switch parts[0] {
 			case "profile":
 				a.Profiles = append(a.Profiles, Profile{

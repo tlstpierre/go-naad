@@ -7,15 +7,20 @@ import (
 )
 
 type EC struct {
-	BroadcastIntrusive bool
-	Event              string
-	AlertType          string
-	ParentURI          string
-	CAPCount           uint64
+	BroadcastIntrusive  bool
+	Event               string
+	AlertName           string
+	AlertType           string
+	AlertLocationStatus string
+	AlertCoverage       string
+	DesignationCode     string
+	NewlyActiveAreas    []string
+	ParentURI           string
+	CAPCount            uint64
 }
 
 func ECParam(ec *EC, version, parameter, value string) error {
-	log.Infof("EC version is %s parameter is %s value is %s", version, parameter, value)
+	log.Debugf("EC version is %s parameter is %s value is %s", version, parameter, value)
 	switch parameter {
 	case "Parent_URI":
 		ec.ParentURI = value
@@ -29,6 +34,19 @@ func ECParam(ec *EC, version, parameter, value string) error {
 			return err
 		}
 		ec.CAPCount = uint64(count)
+	case "Alert_Location_Status":
+		ec.AlertLocationStatus = value
+	case "Alert_Name":
+		ec.AlertName = value
+	case "Alert_Coverage":
+		ec.AlertCoverage = value
+	case "Designation_Code":
+		ec.DesignationCode = value
+	case "Newly_Active_Areas":
+		ec.NewlyActiveAreas = append(ec.NewlyActiveAreas, value)
+	default:
+		log.Warnf("Unknown EC parameter %s with value %s", parameter, value)
+
 	}
 	return nil
 }
