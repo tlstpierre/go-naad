@@ -27,3 +27,6 @@ go.work.sum
 # Assets during testing
 *.mp3
 *.jpg
+
+# Binaries
+cmd/testreceiver/testreceiver
