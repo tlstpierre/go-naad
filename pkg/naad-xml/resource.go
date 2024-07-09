@@ -50,7 +50,6 @@ func (r *Resource) Fetch() error {
 		return nil
 	}
 
-	// TODO fetch the content here
 	log.Infof("Fetching resource %+v", r)
 	resp, err := http.Get(r.URI)
 	if err != nil {

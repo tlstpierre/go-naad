@@ -2,6 +2,7 @@ package naadxml
 
 import (
 	log "github.com/sirupsen/logrus"
+	"strings"
 )
 
 func (a *Alert) ProcessAlert() error {
@@ -20,7 +21,7 @@ func (i *AlertInfo) ProcessInfo() error {
 	}
 
 	for _, resource := range i.Resources {
-		if resource.MimeType == "application/x-url" {
+		if resource.MimeType == "application/x-url" && strings.EqualFold(resource.Description, "Broadcast Audio") {
 			err := resource.Fetch()
 			if err != nil {
 				log.Errorf("Could not fetch resource %s - %v", resource.Description, err)

@@ -2,10 +2,9 @@ package main
 
 import (
 	"context"
-	"fmt"
 	//	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
-	"github.com/tlstpierre/go-naad/pkg/filter"
+	"github.com/tlstpierre/go-naad/pkg/naad-filter"
 	"github.com/tlstpierre/go-naad/pkg/naad-tcp"
 	"github.com/tlstpierre/go-naad/pkg/naad-xml"
 	"net/http"
@@ -14,7 +13,7 @@ import (
 )
 
 var (
-	thisPlace filter.Place
+	thisPlace naadfilter.Place
 )
 
 type Receiver struct {
@@ -23,10 +22,13 @@ type Receiver struct {
 	Receivers     map[string]*naadtcp.Receiver
 	lastHeartBeat time.Time
 	msgChannel    chan *naadxml.Alert
+	outChannel    chan *naadxml.Alert
+	fetchChannel  chan naadxml.Reference
+	deDuplicator  *naadfilter.DeDuplicate
 }
 
-func StartReceiver(ctx context.Context, wg *sync.WaitGroup) (*Receiver, error) {
-	thisPlace = filter.PointFromLatLon(configData.Lat, configData.Lon)
+func StartReceiver(ctx context.Context, wg *sync.WaitGroup, outChan chan *naadxml.Alert) (*Receiver, error) {
+	thisPlace = naadfilter.PointFromLatLon(configData.Lat, configData.Lon)
 
 	messageChannel := make(chan *naadxml.Alert, 4)
 	msgHandler := func(msg *naadxml.Alert) error {
@@ -35,10 +37,13 @@ func StartReceiver(ctx context.Context, wg *sync.WaitGroup) (*Receiver, error) {
 	}
 
 	receiver := &Receiver{
-		ctx:        ctx,
-		wg:         wg,
-		msgChannel: messageChannel,
-		Receivers:  make(map[string]*naadtcp.Receiver, len(configData.StreamServers)),
+		ctx:          ctx,
+		wg:           wg,
+		msgChannel:   messageChannel,
+		outChannel:   outChan,
+		fetchChannel: make(chan naadxml.Reference, 10), // Leave room for up to 10 references
+		Receivers:    make(map[string]*naadtcp.Receiver, len(configData.StreamServers)),
+		deDuplicator: naadfilter.NewDeDuplicate(),
 	}
 
 	for _, server := range configData.StreamServers {
@@ -65,10 +70,7 @@ func (r *Receiver) receiverHandler() {
 	log.Info("Starting receiver manager")
 	defer r.wg.Done()
 	cleanTicker := time.NewTicker(30 * time.Minute)
-	deDuplicator := NewDeDuplicate()
-	httpclient := &http.Client{
-		Timeout: 10 * time.Second,
-	}
+
 	for {
 		select {
 		case <-r.ctx.Done():
@@ -78,7 +80,7 @@ func (r *Receiver) receiverHandler() {
 			}
 			return
 		case <-cleanTicker.C:
-			deDuplicator.CleanOld(time.Hour)
+			r.deDuplicator.CleanOld(time.Hour)
 		case message := <-r.msgChannel:
 			// Handle message
 
@@ -87,82 +89,46 @@ func (r *Receiver) receiverHandler() {
 				log.Infof("Received heartbeat from %s", message.Receiver)
 				r.lastHeartBeat = time.Now()
 				for _, ref := range message.References.References {
-					// TODO run this as a worker
-					if deDuplicator.HasReference(ref.Identifier) {
+					if r.deDuplicator.HasReference(ref.Identifier) {
 						continue
+					} else {
+						r.fetchChannel <- ref
 					}
-					go func() {
-						log.Infof("Fetching referenced message %s", ref.Identifier)
-						refMessage, err := ref.Fetch(httpclient, configData.ArchiveServers[0])
-						if err != nil {
-							log.Error(err)
-							return
-						}
-						deDuplicator.MarkReference(ref.Identifier)
-						deDuplicator.MarkMessage(refMessage.Identifier)
-						// Send the message onward
-						displayMessage(refMessage)
-					}()
 				}
 				continue
 			}
+
 			// If not, send it to the message handler
-			if deDuplicator.HasMessage(message.Identifier) {
+			if r.deDuplicator.HasMessage(message.Identifier) {
 				log.Infof("Message %s is a duplicate", message.Identifier)
 			}
-			deDuplicator.MarkMessage(message.Identifier)
+			r.deDuplicator.MarkMessage(message.Identifier)
 			// spew.Dump(message)
-			displayMessage(message)
+			r.outChannel <- message
 		}
 	}
 }
 
-func displayMessage(msg *naadxml.Alert) {
-	fmt.Printf("\nNew Alert\n")
-	fmt.Printf("Alert ID %s", msg.Identifier)
-	fmt.Printf("Sender:\t%s\n", msg.Sender)
-	fmt.Printf("Status:\t%s\n", msg.Status)
-	fmt.Printf("Type:\t%s\n", msg.MsgType)
-	var matchesCAP bool
-	for _, code := range configData.CAPCodes {
-		matchesCAP = filter.AlertIsCAPArea(msg, code)
-		if matchesCAP {
-			break
-		}
-	}
-	matchesLocation := filter.IsPlaceInAlert(msg, thisPlace)
-
-	localAlert := matchesCAP || matchesLocation
-
-	if localAlert {
-		log.Warnf("\n\nThis alert is local\nCAP Code match: %v Lat/Lon match: %v\n\n", matchesCAP, matchesLocation)
+func (r *Receiver) referenceFetcher() {
+	httpclient := &http.Client{
+		Timeout: 10 * time.Second,
 	}
 
-	msg.ProcessAlert()
-	for _, alert := range msg.Info {
-		if filter.IsPlaceInArea(alert.Area, thisPlace) {
-			log.Warnf("Our place is %+v", thisPlace)
-			log.Warnf("Alert area is %+v", *alert.Area.Polygon)
+	for {
+		select {
+		case <-r.ctx.Done():
+			return
+		case ref := <-r.fetchChannel:
+			log.Infof("Fetching referenced message %s", ref.Identifier)
+			refMessage, err := ref.Fetch(httpclient, configData.ArchiveServers[0])
+			if err != nil {
+				log.Error(err)
+				continue
+			}
+			r.deDuplicator.MarkReference(ref.Identifier)
+			r.deDuplicator.MarkMessage(refMessage.Identifier)
+			// Send the message onward
+			r.outChannel <- refMessage
 		}
-		fmt.Printf("\nAlert in %s\n", alert.Language)
-		fmt.Printf("Event\t%s\n", alert.Event)
-		fmt.Printf("Urgency\t%s\n", alert.Urgency)
-		fmt.Printf("Severity\t%s\n", alert.Severity)
-		fmt.Printf("Certainty\t%s\n", alert.Certainty)
-		fmt.Printf("Headline\t%s\n", alert.Headline)
-		fmt.Printf("Description\t%s\n", alert.Description)
-		if alert.SoremLayer != nil {
-			log.Infof("SoremLayer is %+v", *alert.SoremLayer)
-		}
-		if alert.ECLayer != nil {
-			log.Infof("EC Layer is %+v", *alert.ECLayer)
-		}
-		if alert.CAPLayer != nil {
-			log.Infof("CAP layer is %+v", *alert.CAPLayer)
-		}
-		fmt.Printf("\n\n")
 	}
-
-	fmt.Printf("\nEND OF ALERT\n\n")
-
 }

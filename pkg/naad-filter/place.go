@@ -1,4 +1,4 @@
-package filter
+package naadfilter
 
 import (
 	"github.com/golang/geo/s1"

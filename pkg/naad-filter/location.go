@@ -1,4 +1,4 @@
-package filter
+package naadfilter
 
 import (
 	"github.com/tlstpierre/go-naad/pkg/naad-xml"

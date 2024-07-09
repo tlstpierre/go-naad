@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	log "github.com/sirupsen/logrus"
+	"github.com/tlstpierre/go-naad/pkg/naad-xml"
 	"io"
 	"os"
 	"os/signal"
@@ -49,7 +50,13 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	wg = &sync.WaitGroup{}
 
-	rx, err = StartReceiver(ctx, wg)
+	rxchan := make(chan *naadxml.Alert, 4)
+	infochan := make(chan *naadxml.AlertInfo, 16)
+	rx, err = StartReceiver(ctx, wg, rxchan)
+	if err != nil {
+		log.Fatal(err)
+	}
+	_ = NewProcessor(rxchan, infochan, ctx)
 
 	quitFunc := func() {
 		cancel()
@@ -70,6 +77,9 @@ func main() {
 				quitFunc()
 			case syscall.SIGHUP:
 			}
+		case info := <-infochan:
+			displayInfo(info)
+
 		}
 	}
 }

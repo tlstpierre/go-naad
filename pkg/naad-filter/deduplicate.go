@@ -1,4 +1,4 @@
-package main
+package naadfilter
 
 import (
 	log "github.com/sirupsen/logrus"
