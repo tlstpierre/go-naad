@@ -13,7 +13,7 @@ type Sorem struct {
 }
 
 func SoremParam(sorem *Sorem, version, parameter, value string) error {
-	log.Infof("Sorem version is %s parameter is %s value is %s", version, parameter, value)
+	log.Debugf("Sorem version is %s parameter is %s value is %s", version, parameter, value)
 	switch parameter {
 	case "Broadcast_Immediately":
 		sorem.BroadcastImmediate = strings.EqualFold(value, "yes")

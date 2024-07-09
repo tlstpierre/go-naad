@@ -3,6 +3,7 @@ package naadtcp
 import (
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/tlstpierre/go-naad/pkg/naad-xml"
@@ -74,7 +75,7 @@ func (r *Receiver) listen() {
 			err = decoder.Decode(alert)
 			if err != nil {
 				log.Error(err)
-				if err.Error() == "EOF" {
+				if err.Error() == "EOF" || errors.Is(err, net.ErrClosed) {
 					r.socket.Close()
 					log.Warnf("Connection to %s closed", r.host)
 					time.Sleep(5 * time.Second)
@@ -82,6 +83,8 @@ func (r *Receiver) listen() {
 					r.Connect()
 					return
 				}
+				time.Sleep(2 * time.Second)
+
 			} else {
 				log.Debugf("Decoded alert ID %s - type %s", alert.Identifier, alert.MsgType)
 				alert.Receiver = r.host

@@ -24,7 +24,7 @@ type Profile struct {
 
 func (a *Alert) GetLayers() {
 	for _, code := range a.Code {
-		log.Infof("Code is %s", code)
+		log.Debugf("Code is %s", code)
 		parts := strings.Split(code, ":")
 		log.Debugf("Parts are %+v", parts)
 		if len(parts) == 3 {
@@ -47,20 +47,20 @@ func (a *Alert) GetLayers() {
 
 func (a *AlertInfo) ProcessLayerParam(param Parameter) error {
 	parts := strings.Split(param.Name, ":")
-	log.Infof("Parts are %+v", parts)
+	log.Debugf("Parts are %+v", parts)
 	if len(parts) == 4 {
-		log.Infof("Found element %s", parts[0])
+		log.Debugf("Found element %s", parts[0])
 		switch parts[1] {
 		case "SOREM", "sorem":
 			if a.SoremLayer == nil {
-				log.Info("Adding SOREM layer")
+				log.Debug("Adding SOREM layer")
 				a.SoremLayer = &Sorem{}
 			}
 			return SoremParam(a.SoremLayer, parts[2], parts[3], param.Value)
 
 		case "EC-MSC-SMC", "ec-msc-smc":
 			if a.ECLayer == nil {
-				log.Info("Adding EC layer")
+				log.Debug("Adding EC layer")
 				a.ECLayer = &EC{}
 			}
 			return ECParam(a.ECLayer, parts[2], parts[3], param.Value)
@@ -72,13 +72,13 @@ func (a *AlertInfo) ProcessLayerParam(param Parameter) error {
 
 func (a *AlertInfo) ProcessProfileParam(param Parameter) error {
 	parts := strings.Split(param.Name, ":")
-	log.Infof("Parts are %+v", parts)
+	log.Debugf("Parts are %+v", parts)
 	if len(parts) == 4 {
-		log.Infof("Found element %s", parts[0])
+		log.Debugf("Found element %s", parts[0])
 		switch parts[1] {
 		case "CAP-CP", "cap-cp":
 			if a.CAPLayer == nil {
-				log.Info("Adding CAP-CP layer")
+				log.Debug("Adding CAP-CP layer")
 				a.CAPLayer = &CAP{}
 			}
 			return CAPParam(a.CAPLayer, parts[2], parts[3], param.Value)

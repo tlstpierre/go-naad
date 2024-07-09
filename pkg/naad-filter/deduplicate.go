@@ -57,7 +57,7 @@ func (d *DeDuplicate) CleanOld(age time.Duration) {
 		}
 	}
 	for ref, timestamp := range d.retrievedReferences {
-		if time.Since(timestamp) > age {
+		if time.Since(timestamp) > 24*time.Hour {
 			delete(d.retrievedReferences, ref)
 			refCount++
 		}
