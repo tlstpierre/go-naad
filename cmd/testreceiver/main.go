@@ -50,8 +50,8 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	wg = &sync.WaitGroup{}
 
-	rxchan := make(chan *naadxml.Alert, 4)
-	infochan := make(chan *naadxml.AlertInfo, 16)
+	rxchan := make(chan *naadxml.Alert, 16)
+	infochan := make(chan *naadxml.AlertInfo, 32)
 	rx, err = StartReceiver(ctx, wg, rxchan)
 	if err != nil {
 		log.Fatal(err)

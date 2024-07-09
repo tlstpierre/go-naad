@@ -28,19 +28,21 @@ func (p *Processor) run() {
 	for {
 		select {
 		case <-p.ctx.Done():
+			log.Infof("Stopping processor")
 			return
 		case alert := <-p.inChannel:
 			// Process the alert here
 
-			alert.ProcessAlert()
-
-			fmt.Printf("\nNew Alert\n")
+			fmt.Printf("\nProcessing New Alert\n")
 			fmt.Printf("Alert ID %s", alert.Identifier)
 			fmt.Printf("Sender:\t%s\n", alert.Sender)
 			fmt.Printf("Status:\t%s\n", alert.Status)
 			fmt.Printf("Type:\t%s\n", alert.MsgType)
-
+			alert.ProcessAlert()
 			for _, info := range alert.Info {
+				if info.Language != "en-CA" {
+					continue
+				}
 				p.outChannel <- info
 			}
 		}

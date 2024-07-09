@@ -40,6 +40,7 @@ func displayInfo(alert *naadxml.AlertInfo) {
 	fmt.Printf("Severity\t%s\n", alert.Severity)
 	fmt.Printf("Certainty\t%s\n", alert.Certainty)
 	fmt.Printf("Headline\t%s\n", alert.Headline)
+	fmt.Printf("Location\t%s\n", alert.Area.Description)
 	fmt.Printf("Description\t%s\n", alert.Description)
 	if alert.SoremLayer != nil {
 		log.Infof("SoremLayer is %+v", *alert.SoremLayer)

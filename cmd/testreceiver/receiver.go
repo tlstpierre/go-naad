@@ -56,7 +56,7 @@ func StartReceiver(ctx context.Context, wg *sync.WaitGroup, outChan chan *naadxm
 	}
 	wg.Add(1)
 	go receiver.receiverHandler()
-
+	go receiver.referenceFetcher()
 	for _, rx := range receiver.Receivers {
 		err := rx.Connect()
 		if err != nil {
@@ -81,6 +81,7 @@ func (r *Receiver) receiverHandler() {
 			return
 		case <-cleanTicker.C:
 			r.deDuplicator.CleanOld(time.Hour)
+
 		case message := <-r.msgChannel:
 			// Handle message
 
@@ -92,6 +93,7 @@ func (r *Receiver) receiverHandler() {
 					if r.deDuplicator.HasReference(ref.Identifier) {
 						continue
 					} else {
+						log.Infof("Sending ref %s to be fetched", ref.Identifier)
 						r.fetchChannel <- ref
 					}
 				}
@@ -104,6 +106,7 @@ func (r *Receiver) receiverHandler() {
 			}
 			r.deDuplicator.MarkMessage(message.Identifier)
 			// spew.Dump(message)
+			log.Infof("Sending message %s for processing", message.Identifier)
 			r.outChannel <- message
 		}
 	}
