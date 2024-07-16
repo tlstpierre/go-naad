@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	log "github.com/sirupsen/logrus"
+	"github.com/tlstpierre/go-naad/pkg/naad-socket"
 	"github.com/tlstpierre/go-naad/pkg/naad-xml"
 	"io"
 	"os"
@@ -18,7 +19,6 @@ var (
 	ConfigFile = flag.String("config", "", "Config file path")
 	configData *Config
 	wg         *sync.WaitGroup
-	rx         *Receiver
 )
 
 func main() {
@@ -50,13 +50,21 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	wg = &sync.WaitGroup{}
 
-	rxchan := make(chan *naadxml.Alert, 16)
-	infochan := make(chan *naadxml.AlertInfo, 32)
-	rx, err = StartReceiver(ctx, wg, rxchan)
+	rxchan := make(chan *naadxml.Alert, 4)
+	infochan := make(chan *naadxml.AlertInfo, 16)
+	var rxg *naadsocket.ReceiverGroup
+	rxg, err = naadsocket.NewReceiverGroup(configData.StreamServers, configData.ArchiveServers, rxchan, ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	initFilter()
+
 	_ = NewProcessor(rxchan, infochan, ctx)
+	err = rxg.Start()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	quitFunc := func() {
 		cancel()

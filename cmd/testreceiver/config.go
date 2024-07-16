@@ -17,10 +17,13 @@ type Config struct {
 func (c *Config) Initialize() {
 	*c = Config{
 		StreamServers: []string{
-			"streaming1.naad-adna.pelmorex.com:8080",
+			"tcp://streaming1.naad-adna.pelmorex.com:8080",
+			"tcp://streaming2.naad-adna.pelmorex.com:8080",
+			"udp://224.0.10.10:25555",
 		},
 		ArchiveServers: []string{
 			"capcp1.naad-adna.pelmorex.com",
+			"capcp2.naad-adna.pelmorex.com",
 		},
 		CAPCodes: []int{
 			3518020, // Scugog

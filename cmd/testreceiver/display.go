@@ -7,6 +7,14 @@ import (
 	"github.com/tlstpierre/go-naad/pkg/naad-xml"
 )
 
+var (
+	thisPlace naadfilter.Place
+)
+
+func initFilter() {
+	thisPlace = naadfilter.PointFromLatLon(configData.Lat, configData.Lon)
+}
+
 func displayInfo(alert *naadxml.AlertInfo) {
 	/*
 			fmt.Printf("\nNew Alert\n")
@@ -22,6 +30,7 @@ func displayInfo(alert *naadxml.AlertInfo) {
 			break
 		}
 	}
+
 	matchesLocation := naadfilter.IsPlaceInArea(alert.Area, thisPlace)
 
 	localAlert := matchesCAP || matchesLocation

@@ -20,6 +20,13 @@ type Reference struct {
 	Sent       time.Time
 }
 
+func (a *Alert) IsUpdate() bool {
+	if a.MsgType == AlertMessage && len(a.References.References) == 1 {
+		return true
+	}
+	return false
+}
+
 func (r *References) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	for {
 		t, err := d.Token()

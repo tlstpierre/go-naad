@@ -1,9 +1,8 @@
-package naadtcp
+package naadsocket
 
 import (
 	"context"
 	"encoding/xml"
-	"errors"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/tlstpierre/go-naad/pkg/naad-xml"
@@ -12,7 +11,7 @@ import (
 	"time"
 )
 
-type Receiver struct {
+type TCPReceiver struct {
 	ctx        context.Context
 	cancelFunc context.CancelFunc
 	socket     net.Conn
@@ -21,11 +20,11 @@ type Receiver struct {
 	wg         *sync.WaitGroup
 }
 
-func NewReceiver(host string) (*Receiver, error) {
+func NewTCPReceiver(host string) (*TCPReceiver, error) {
 	if host == "" {
 		return nil, fmt.Errorf("Need host and port for TCP connection")
 	}
-	receiver := &Receiver{
+	receiver := &TCPReceiver{
 		host: host,
 		ctx:  context.Background(),
 		wg:   new(sync.WaitGroup),
@@ -35,7 +34,7 @@ func NewReceiver(host string) (*Receiver, error) {
 	return receiver, nil
 }
 
-func (r *Receiver) Connect() error {
+func (r *TCPReceiver) Connect() error {
 	ctx, _ := context.WithTimeout(r.ctx, time.Minute)
 	var err error
 	var d net.Dialer
@@ -50,17 +49,17 @@ func (r *Receiver) Connect() error {
 	return nil
 }
 
-func (r *Receiver) Disconnect() {
+func (r *TCPReceiver) Disconnect() {
 	r.socket.Close()
 	r.cancelFunc()
 	r.wg.Wait()
 }
 
-func (r *Receiver) AddHandler(handler func(*naadxml.Alert) error) {
+func (r *TCPReceiver) SetHandler(handler func(*naadxml.Alert) error) {
 	r.handler = handler
 }
 
-func (r *Receiver) listen() {
+func (r *TCPReceiver) listen() {
 	defer r.wg.Done()
 	decoder := xml.NewDecoder(r.socket)
 	var err error
@@ -75,16 +74,14 @@ func (r *Receiver) listen() {
 			err = decoder.Decode(alert)
 			if err != nil {
 				log.Error(err)
-				if err.Error() == "EOF" || errors.Is(err, net.ErrClosed) {
-					r.socket.Close()
-					log.Warnf("Connection to %s closed", r.host)
-					time.Sleep(5 * time.Second)
-					log.Infof("Attempting to re-connect to host %s", r.host)
-					r.Connect()
-					return
-				}
-				time.Sleep(2 * time.Second)
-
+				//				if err.Error() == "EOF" {
+				r.socket.Close()
+				log.Warnf("Connection to %s closed", r.host)
+				time.Sleep(5 * time.Second)
+				log.Infof("Attempting to re-connect to host %s", r.host)
+				r.Connect()
+				return
+				//				}
 			} else {
 				log.Debugf("Decoded alert ID %s - type %s", alert.Identifier, alert.MsgType)
 				alert.Receiver = r.host
