@@ -1,0 +1,52 @@
+<html>
+  <head>
+    <title>NAAD Alerts</title>
+    <meta http-equiv="refresh" content="10">
+  </head>
+  
+  <body>
+    {{ $alertList := .Summary }}
+
+    <fieldset>
+      <legend>Cached Alerts</legend>
+      <table>
+        <tr>
+          <th>Identifier</th>
+          <th>Sender</th>
+          <th>Sent</th>
+          <th>Status</th>
+          <th>Message Type</th>
+          <th>Category</th>
+          <th>Event</th>
+          <th>Urgency</th>
+          <th>Area</th>
+          <th>Headline</th>
+          <th>Description</th>
+          
+          
+        </tr>
+        {{ range $alertList }}
+        {{ $colour := "green"}}
+        {{ if .Expired }}{{ $colour = "grey" }} {{ end }}
+        <tr style="background: {{$colour}};">
+          <td><a href="alertdetail/{{ .Identifier | idencode }}">{{ .Identifier }}</a></td>
+          <td>{{ .Sender }}</td>
+          <td>{{ .Sent }}</td>
+          <td>{{ .Status }}</td>
+          <td>{{ .MsgType }}</td>
+          {{ with (index .Info "en-CA") }}
+          <td>{{ index .Category 0 }}</td>
+          <td>{{ .Event }}</td>
+          <td>{{ .Urgency }}</td>
+          <td>{{ .Area }}</td>
+          <td><b>{{ .Headline }}</b></td>
+          <td>{{ .Description }}</td>
+          {{ end }}
+        </tr>
+        {{ end }}
+        
+      </table>
+    </fieldset>
+
+  </body>
+</html>

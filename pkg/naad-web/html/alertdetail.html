@@ -1,0 +1,228 @@
+<html>
+  <head>
+  </head>
+  <body>
+    <fieldset>
+      <legend>Alert Detail</legend>
+    <table>
+      <tr>
+        <th>
+          Identifier
+        </th>
+        <th>
+          Sender
+        </th>
+        <th>
+          Sent
+        </th>
+        <th>
+          Status
+        </th>
+        <th>
+          Message Type
+        </th>
+        <th>
+          Scope
+        </th>
+        <th>
+          Category
+        </th>
+        <th>
+          Event
+        </th>
+        <th>
+          Urgency
+        </th>
+        <th>
+          Severity
+        </th>
+        <th>
+          Certainty
+        </th>
+        <th>
+          Expires
+        </th>
+        <th>
+          Sender Name
+        </th>
+      </tr>
+      <tr>
+        {{ $hasSorem := .Summary.HasSorem }}
+        {{ $hasEC := .Summary.HasEC }}
+        {{ $hasCAP := .Summary.HasCAP }}
+        <td>{{ .Summary.Identifier }}</td>
+        <td>{{ .Summary.Sender }}</td>
+        <td>{{ .Summary.Sent }}</td>
+        <td>{{ .Summary.Status }}</td>
+        <td>{{ .Summary.MsgType }}</td>
+        <td>{{ .Summary.Scope }}</td>
+        {{ with (index .Summary.Info "en-CA") }}
+        <td>{{ index .Category 0 }}</td>
+        <td>{{ .Event }}</td>
+        <td>{{ .Urgency }}</td>
+        <td>{{ .Severity }}</td>
+        <td>{{ .Certainty }}</td>
+        <td>{{ .Expires }}</td>
+        <td>{{ .SenderName }}</td>
+        <td>{{ .Area }}</td>
+      </tr>
+    </table>
+      <div>
+        <h3>{{ .Headline }}</h3>
+        <p>{{ .Description }}</p>
+      </div>
+        {{ if $hasSorem }}
+          <div>
+            <fieldset>
+              <legend>Sorem Layer</legend>
+            <table>
+              <tr>
+                <th>
+                  Broadcast Immediate
+                </th>
+                <th>
+                  Broadcast Text
+                </th>
+                <th>
+                  Wireless Immediate
+                </th>
+                <th>
+                  Wireless Text
+                </th>
+              </tr>
+              <tr>
+                <td>
+                  {{ .SoremLayer.BroadcastImmediate }}
+                </td>
+                <td>
+                  {{ .SoremLayer.BroadcastText }}
+                </td>
+                <td>
+                  {{ .SoremLayer.WirelessImmediate }}
+                </td>
+                <td>
+                  {{ .SoremLayer.WirelessText }}
+                </td>
+              </tr>
+            </table>
+          </fieldset>
+          </div>
+        {{ end}}
+        {{ if $hasEC }}
+          <div>
+            <fieldset>
+              <legend>Environment Canada Layer</legend>
+            <table>
+              <tr>
+                <th>
+                  Broadcast Intrusive
+                </th>
+                <th>
+                  Event
+                </th>
+                <th>
+                  Alert Name
+                </th>
+                <th>
+                  Alert Type
+                </th>
+                <th>
+                  Alert Location Status
+                </th>
+                <th>
+                  Alert Coverage
+                </th>
+                <th>
+                  Designation Code
+                </th>
+                <th>
+                  Newly Active Areas
+                </th>
+                <th>
+                  Additional Alerting Authority
+                </th>
+              </tr>
+              <tr>
+                <td>
+                  {{ .ECLayer.BroadcastIntrusive }}
+                </td>
+                <td>
+                  {{ .ECLayer.Event }}
+                </td>
+                <td>
+                  {{ .ECLayer.AlertName }}
+                </td>
+                <td>
+                  {{ .ECLayer.AlertType }}
+                </td>
+                <td>
+                  {{ .ECLayer.AlertLocationStatus }}
+                </td>
+                <td>
+                  {{ .ECLayer.AlertCoverage }}
+                </td>
+                <td>
+                  {{ .ECLayer.DesignationCode }}
+                </td>
+                <td>
+                  {{ .ECLayer.NewlyActiveAreas }}
+                </td>
+                <td>
+                  {{ .ECLayer.AdditionalAlertingAuthority }}
+                </td>
+              </tr>
+            </table>
+          </fieldset>
+          </div>
+        {{ end }}
+      {{ end }}  
+      <fieldset>
+        <legend>Resources</legend>
+        <table>
+          <tr>
+            <th>
+              Language
+            </th>
+            <th>
+              Description
+            </th>
+            <th>
+              Mime Type
+            </th>
+            <th>
+              Size
+            </th>
+            <th>
+              URI
+            </th>
+          </tr>
+        {{ range .History.Current.Info}}
+          {{ $language := .Language}}
+          {{ range .Resources }}
+            <tr>
+              <td>
+                {{ $language }}
+              </td>
+              <td>
+                {{ .Description }}
+              </td>
+              <td>
+                {{ .MimeType }}
+              </td>
+              <td>
+                {{ .Size }}
+              </td>
+              <td>
+                {{ if eq .MimeType "application/x-url" }}
+                  <a href="{{ .URI }}">{{ .URI }}</a>
+                {{ else }}
+                  {{ .URI }}
+                {{ end}}
+              </td>
+            </tr>
+          {{ end }}
+        {{ end }}
+      </fieldset>
+    </fieldset>
+  </body>
+</html>
