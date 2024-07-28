@@ -72,12 +72,7 @@ func (g *ReceiverGroup) Start() error {
 	g.wg.Add(1)
 	go g.receiverHandler()
 	go g.referenceFetcher()
-	for _, rx := range g.Receivers {
-		err := rx.Connect()
-		if err != nil {
-			return err
-		}
-	}
+
 	return nil
 }
 
@@ -85,6 +80,13 @@ func (r *ReceiverGroup) receiverHandler() {
 	log.Info("Starting receiver manager")
 	defer r.wg.Done()
 	cleanTicker := time.NewTicker(30 * time.Minute)
+
+	for rxname, rx := range r.Receivers {
+		err := rx.Connect()
+		if err != nil {
+			log.Errorf("Problem connecting to streaming server %s - %v", rxname, err)
+		}
+	}
 
 	for {
 		select {
@@ -116,6 +118,7 @@ func (r *ReceiverGroup) receiverHandler() {
 			// If not, send it to the message handler
 			if r.deDuplicator.HasMessage(message.Identifier) {
 				log.Infof("Message %s is a duplicate", message.Identifier)
+				continue
 			}
 			r.deDuplicator.MarkMessage(message.Identifier)
 			// spew.Dump(message)
