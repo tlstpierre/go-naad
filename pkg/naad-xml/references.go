@@ -21,7 +21,7 @@ type Reference struct {
 }
 
 func (a *Alert) IsUpdate() bool {
-	if a.MsgType == AlertMessage && len(a.References.References) == 1 {
+	if a.MsgType == AlertUpdate && len(a.References.References) > 0 {
 		return true
 	}
 	return false

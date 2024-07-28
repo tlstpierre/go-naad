@@ -45,9 +45,13 @@ func (c *Base64Content) UnmarshalXML(d *xml.Decoder, start xml.StartElement) err
 }
 
 func (r *Resource) Fetch() error {
-	if r.MimeType != "application/x-url" {
-		log.Infof("Cannot fetch %s - not a URL", r.Description)
+	if len(r.Content) > 0 {
+		log.Warnf("Not fetching %s - content already populated", r.Description)
 		return nil
+	}
+
+	if !strings.HasPrefix(r.URI, "http") {
+		return fmt.Errorf("Resource does not have HTTP or HTTPS URI - %s", r.URI)
 	}
 
 	log.Infof("Fetching resource %+v", r)
@@ -63,7 +67,8 @@ func (r *Resource) Fetch() error {
 	if err != nil {
 		return fmt.Errorf("Problem reading content from %s - %v", r.URI, err)
 	}
-	r.MimeType = resp.Header.Get("ContentType")
+	r.MimeType = resp.Header.Get("Content-Type")
+	log.Infof("Fetched content has mime type %s", r.MimeType)
 	r.Size = uint64(len(r.Content))
 	log.Infof("URI is %s", r.URI)
 	r.URI = strings.TrimPrefix(r.URI, "http:/")

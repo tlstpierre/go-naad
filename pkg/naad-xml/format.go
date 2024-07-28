@@ -16,6 +16,7 @@ type Alert struct {
 	Scope      AlertScope   `xml:"scope"`
 	Code       []string     `xml:"code"`
 	Info       []*AlertInfo `xml:"info"`
+	Note       string       `xml:"note"`
 	References References   `xml:"references"`
 	Layers     []Layer      `xml:"-"`
 	Profiles   []Profile    `xml:"-"`
@@ -24,40 +25,54 @@ type Alert struct {
 type AlertStatus string
 
 const (
-	Actual AlertStatus = "Actual"
+	Actual   AlertStatus = "Actual"
+	Exercise             = "Exercise"
+	System               = "System"
+	Test                 = "Test"
+	Draft                = "Draft"
 )
 
 type MessageType string
 
 const (
 	AlertMessage MessageType = "Alert"
+	AlertUpdate              = "Update"
+	AlertCancel              = "Cancel"
+	AlertAck                 = "Ack"
+	AlertError               = "Error"
 )
 
 type AlertScope string
 
 const (
-	Public AlertScope = "Public"
+	Public          AlertScope = "Public"
+	RestrictedScope            = "Restricted"
+	PrivateScope               = "Private"
 )
 
 // TODO type these fields instead of string
 type AlertInfo struct {
-	Language    string      `xml:"language"`
-	Category    string      `xml:"category"`
-	Event       string      `xml:"event"`
-	Urgency     Urgency     `xml:"urgency"`
-	Severity    Severity    `xml:"severity"`
-	Certainty   Certainty   `xml:"certainty"`
-	EventCode   Parameter   `xml:"eventCode"`
-	Expires     time.Time   `xml:"expires"`
-	SenderName  string      `xml:"senderName"`
-	Headline    string      `xml:"headline"`
-	Description string      `xml:"description"`
-	Parameters  []Parameter `xml:"parameter"`
-	Area        AlertArea   `xml:"area"`
-	Resources   []Resource  `xml:"resource"`
-	SoremLayer  *Sorem      `xml:"-"`
-	ECLayer     *EC         `xml:"-"`
-	CAPLayer    *CAP        `xml:"-"`
+	Language    string         `xml:"language"`
+	Category    []Category     `xml:"category"`
+	Event       string         `xml:"event"`
+	Response    []ResponseType `xml:"responseType"`
+	Urgency     Urgency        `xml:"urgency"`
+	Severity    Severity       `xml:"severity"`
+	Certainty   Certainty      `xml:"certainty"`
+	EventCode   Parameter      `xml:"eventCode"`
+	Effective   time.Time      `xml:"effective"`
+	Onset       time.Time      `xml:"onset"`
+	Expires     time.Time      `xml:"expires"`
+	SenderName  string         `xml:"senderName"`
+	Headline    string         `xml:"headline"`
+	Description string         `xml:"description"`
+	Instruction string         `xml:"instruction"`
+	Parameters  []Parameter    `xml:"parameter"`
+	Area        AlertArea      `xml:"area"`
+	Resources   []Resource     `xml:"resource"`
+	SoremLayer  *Sorem         `xml:"-"`
+	ECLayer     *EC            `xml:"-"`
+	CAPLayer    *CAP           `xml:"-"`
 }
 
 type Urgency string
@@ -88,6 +103,36 @@ const (
 	Possible                   = "Possible" // Possible but not likely - < 50%
 	Unlikely                   = "Unlikely" // Not expected to occur
 	UnknownCertainty           = "Unknown"  // Certainty not known
+)
+
+type Category string
+
+const (
+	Geo            Category = "Geo"
+	Met                     = "Met"
+	Safety                  = "Safety"
+	Security                = "Security"
+	Rescue                  = "Rescue"
+	Fire                    = "Fire"
+	Environment             = "Env"
+	Transport               = "Transport"
+	Infrastructure          = "Infra"
+	CBRNE                   = "CBRNE"
+	Other                   = "Other"
+)
+
+type ResponseType string
+
+const (
+	Shelter  ResponseType = "Shelter"
+	Evacuate              = "Evacuate"
+	Prepare               = "Prepare"
+	Execute               = "Execute"
+	Avoid                 = "Avoid"
+	Monitor               = "Monitor"
+	Assess                = "Assess"
+	AllClear              = "AllClear"
+	None                  = "None"
 )
 
 type Parameter struct {
