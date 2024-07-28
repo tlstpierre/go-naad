@@ -23,12 +23,14 @@ func (d *DeDuplicate) HasMessage(msg string) bool {
 	d.RLock()
 	defer d.RUnlock()
 	_, found := d.messageList[msg]
+	log.Infof("Checking for message ID %s in map %+v - found existing entry %v", d.messageList, found)
 	return found
 }
 
 func (d *DeDuplicate) MarkMessage(msg string) {
 	d.Lock()
 	defer d.Unlock()
+	log.Infof("Marking message %s as received already", msg)
 	d.messageList[msg] = time.Now()
 }
 
