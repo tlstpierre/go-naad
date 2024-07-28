@@ -33,12 +33,20 @@ func (p *Processor) run() {
 		case alert := <-p.inChannel:
 			// Process the alert here
 
+			// Cache the alert
+			NaadCache.Add(alert)
+
 			fmt.Printf("\nProcessing New Alert\n")
 			fmt.Printf("Alert ID %s", alert.Identifier)
 			fmt.Printf("Sender:\t%s\n", alert.Sender)
 			fmt.Printf("Status:\t%s\n", alert.Status)
 			fmt.Printf("Type:\t%s\n", alert.MsgType)
-			alert.ProcessAlert()
+			err := alert.ProcessAlert()
+			if err != nil {
+				log.Warnf("Problem processing alert - %v", err)
+			}
+			AnnounceMessage(alert)
+			continue // Just to keep it simple for now
 			for _, info := range alert.Info {
 				if info.Language != "en-CA" {
 					continue

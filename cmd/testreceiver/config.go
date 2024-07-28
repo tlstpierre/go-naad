@@ -1,16 +1,29 @@
 package main
 
 import (
+	"fmt"
+	log "github.com/sirupsen/logrus"
+	"github.com/tlstpierre/mc-audio/pkg/piper-tts"
 	"gopkg.in/yaml.v2"
 	"os"
 )
 
 type Config struct {
-	StreamServers  []string `yaml:"streamservers"`
-	ArchiveServers []string `yaml:"archiveservers"`
-	CAPCodes       []int    `yaml:"capcodes"`
-	Lat            float64  `yaml:"lat"`
-	Lon            float64  `yaml:"lon"`
+	StreamServers  []string                 `yaml:"streamservers"`
+	ArchiveServers []string                 `yaml:"archiveservers"`
+	CAPCodes       []string                 `yaml:"capcodes"`
+	Lat            float64                  `yaml:"lat"`
+	Lon            float64                  `yaml:"lon"`
+	WebListen      string                   `yaml:"weblisten"`
+	TTSConfig      pipertts.PiperConfig     `yaml:"ttsconfig"`
+	Channels       map[string]ChannelConfig `yaml:"channels"`
+}
+
+type ChannelConfig struct {
+	Addresses []string `yaml:"addresses"`
+	Language  string   `yaml:"language"`
+	Voice     string   `yaml:"voice"`
+	CAPCodes  []string `yaml:"capcodes"`
 }
 
 // Initialize a config object with default values
@@ -25,12 +38,27 @@ func (c *Config) Initialize() {
 			"capcp1.naad-adna.pelmorex.com",
 			"capcp2.naad-adna.pelmorex.com",
 		},
-		CAPCodes: []int{
-			3518020, // Scugog
-			3518029, // Uxbridge
+		CAPCodes: []string{
+			"3518020", // Scugog
+			"3518029", // Uxbridge
 		},
-		Lat: 44.10747,
-		Lon: -78.95514,
+		Lat:       44.10747,
+		Lon:       -78.95514,
+		WebListen: ":8081",
+		TTSConfig: pipertts.PiperConfig{
+			Samplerate: 16000,
+			Command:    "/opt/piper/piper",
+			VoicePath:  "/opt/piper",
+			Voice:      "en_GB-alan-low",
+		},
+		Channels: map[string]ChannelConfig{
+			"test": ChannelConfig{
+				Addresses: []string{
+					"[FF05:0:0:0:0:0:1:1010]:5004",
+				},
+				Language: "en-CA",
+			},
+		},
 	}
 }
 
@@ -66,4 +94,13 @@ func (c *Config) SaveFile(filename string) error {
 		return err
 	}
 	return nil
+}
+
+func (c *Config) OutputDefault() {
+	output, err := yaml.Marshal(c)
+	if err != nil {
+		log.Errorf("Problem marshalling config - %v", err)
+		return
+	}
+	fmt.Print(string(output))
 }
