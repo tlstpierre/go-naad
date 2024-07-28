@@ -17,7 +17,13 @@ type EC struct {
 	NewlyActiveAreas            []string
 	ParentURI                   string
 	AdditionalAlertingAuthority string
-	CAPCount                    uint64
+	CAPCount                    CAPCounter
+}
+
+type CAPCounter struct {
+	A uint64
+	M uint64
+	C uint64
 }
 
 func ECParam(ec *EC, version, parameter, value string) error {
@@ -30,12 +36,7 @@ func ECParam(ec *EC, version, parameter, value string) error {
 	case "Broadcast_Intrusive":
 		ec.BroadcastIntrusive = strings.EqualFold(value, "Yes")
 	case "CAP_count":
-		count, err := strconv.ParseInt(value, 10, 64)
-		if err != nil {
-			log.Errorf("Problem parsing CAP_Count value %s - %v", value, err)
-			return err
-		}
-		ec.CAPCount = uint64(count)
+		ec.CAPCount = parseECCapCount(value)
 	case "Alert_Location_Status":
 		ec.AlertLocationStatus = value
 	case "Alert_Name":
@@ -53,4 +54,26 @@ func ECParam(ec *EC, version, parameter, value string) error {
 
 	}
 	return nil
+}
+
+func parseECCapCount(value string) CAPCounter {
+	list := strings.Split(value, " ")
+	var counter CAPCounter
+	for _, entry := range list {
+		entryFields := strings.Split(entry, ":")
+		if len(entryFields) == 2 {
+			count, _ := strconv.ParseInt(entryFields[1], 10, 64)
+			switch entryFields[0] {
+			case "A":
+				counter.A = uint64(count)
+			case "M":
+				counter.M = uint64(count)
+			case "C":
+				counter.C = uint64(count)
+			default:
+				log.Warnf("Unknown EC CAP Count value of %s", entryFields[0])
+			}
+		}
+	}
+	return counter
 }
