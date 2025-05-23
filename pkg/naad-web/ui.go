@@ -27,6 +27,10 @@ func init() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	alertDetail.Funcs(template.FuncMap{
+		"idencode": IDEncode,
+	})
 	_, err = alertDetail.ParseFS(htmlFS, "html/alertdetail.html")
 	if err != nil {
 		log.Fatal(err)
@@ -65,6 +69,25 @@ func HandleAlertSummary(w http.ResponseWriter, r *http.Request, cache *naadcache
 	}
 }
 
+func HandleAlertCache(w http.ResponseWriter, r *http.Request, cache *naadcache.Cache) {
+	history := cache.DumpAlerts()
+	summary := make([]naadxml.AlertSummary, len(history))
+	for i := 0; i < len(history); i++ {
+		summary[i] = history[i].Summary()
+	}
+
+	var templateData struct {
+		Summary []naadxml.AlertSummary
+	}
+	templateData.Summary = summary
+
+	err := alertList.Execute(w, templateData)
+	if err != nil {
+		log.Errorf("Problem with alert list template - %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+}
+
 func HandleAlertDetail(w http.ResponseWriter, r *http.Request, cache *naadcache.Cache) {
 	vars := mux.Vars(r)
 	id, found := vars["id"]
@@ -78,13 +101,16 @@ func HandleAlertDetail(w http.ResponseWriter, r *http.Request, cache *naadcache.
 	alert, history := cache.Get(id)
 
 	if alert == nil {
+		log.Warnf("Alert ID %s not found in cache", id)
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 	var templateData struct {
+		Alert   *naadxml.Alert
 		History *naadcache.AlertHistory
 		Summary naadxml.AlertSummary
 	}
+	templateData.Alert = alert
 	templateData.History = history
 	templateData.Summary = alert.Summary()
 	log.Infof("Summary is %+v", alert.Summary())

@@ -3,25 +3,39 @@ package naadcache
 import (
 	log "github.com/sirupsen/logrus"
 	"github.com/tlstpierre/go-naad/pkg/naad-xml"
+	"net/http"
 	"sort"
 	"sync"
 	"time"
 )
 
+var (
+	httpClient = &http.Client{
+		Timeout: 10 * time.Second,
+	}
+)
+
 type Cache struct {
 	sync.RWMutex
-	alerts      map[string]*naadxml.Alert
-	history     map[string]*AlertHistory
-	handled     uint64
-	ArchiveTime time.Duration
+	alerts         map[string]*naadxml.Alert
+	history        map[string]*AlertHistory
+	handled        uint64
+	httpClient     *http.Client
+	archiveServers []string
+	ArchiveTime    time.Duration
 }
 
 type AlertHistory struct {
+	IsOriginal bool
+	Updated    bool
+	IsUpdate   bool
 	LastUpdate time.Time
 	Expired    time.Time
 	Identifier string
 	Current    *naadxml.Alert
-	Previous   []*naadxml.Alert
+	Original   *naadxml.Alert
+	UpdatedBy  []string
+	// Updates    []string
 }
 
 func NewCache() *Cache {
@@ -29,7 +43,15 @@ func NewCache() *Cache {
 		alerts:      make(map[string]*naadxml.Alert, 32),
 		history:     make(map[string]*AlertHistory, 32),
 		ArchiveTime: 72 * time.Hour,
+		httpClient:  httpClient,
 	}
+}
+
+func (c *Cache) SetArchive(servers []string) {
+	c.httpClient = &http.Client{
+		Timeout: 10 * time.Second,
+	}
+	c.archiveServers = servers
 }
 
 func (c *Cache) Add(alert *naadxml.Alert) {
@@ -39,18 +61,40 @@ func (c *Cache) Add(alert *naadxml.Alert) {
 	c.alerts[alert.Identifier] = alert
 
 	if alert.IsUpdate() {
-		originalID := alert.References.References[0].Identifier
-		log.Infof("Updating original alert %s with %s", originalID, alert.Identifier)
-		history, hasOriginal := c.history[originalID]
-		if !hasOriginal {
-			c.history[originalID] = newHistory(alert, originalID)
-
-		} else {
-			history.Push(alert)
+		//		thisHistory.IsUpdate = true
+		for _, reference := range alert.References.References {
+			originalID := reference.Identifier
+			log.Infof("Updating original alert %s with %s", originalID, alert.Identifier)
+			history, hasOriginal := c.history[originalID]
+			if !hasOriginal {
+				for _, server := range c.archiveServers {
+					refAlert, err := reference.Fetch(c.httpClient, server)
+					if err == nil {
+						c.alerts[refAlert.Identifier] = refAlert
+						if !refAlert.IsUpdate() {
+							refHistory := newHistory(refAlert, refAlert.Identifier)
+							//						refHistory.UpdatedBy = append(refHistory.UpdatedBy, alert.Identifier)
+							refHistory.ApplyUpdate(alert)
+							c.history[refAlert.Identifier] = refHistory
+						} else {
+							log.Warnf("Referenced alert %s is also an update??", refAlert.Identifier)
+						}
+						log.Infof("Fetched %s from archive", refAlert.Identifier)
+						break
+					} else {
+						log.Errorf("Problem fetching previous missed message %s - %v", alert.Identifier, err)
+					}
+				}
+			} else {
+				history.ApplyUpdate(alert)
+			}
+			//			thisHistory.Updates = append(thisHistory.Updates, originalID)
 		}
-		return
+	} else {
+		thisHistory := newHistory(alert, alert.Identifier)
+		c.history[alert.Identifier] = thisHistory
+		thisHistory.IsOriginal = true
 	}
-	c.history[alert.Identifier] = newHistory(alert, alert.Identifier)
 }
 
 func (c *Cache) Get(id string) (*naadxml.Alert, *AlertHistory) {
@@ -100,15 +144,34 @@ func newHistory(alert *naadxml.Alert, id string) *AlertHistory {
 		Identifier: id,
 		LastUpdate: alert.Sent,
 		Current:    alert,
-		Previous:   make([]*naadxml.Alert, 0, 2),
+		Original:   alert,
+		UpdatedBy:  make([]string, 0, 2),
+		//		Updates:    make([]string, 0, 2),
 	}
 }
 
+func (h *AlertHistory) ApplyUpdate(alert *naadxml.Alert) {
+	h.Updated = true
+	h.LastUpdate = alert.Sent
+	h.UpdatedBy = append(h.UpdatedBy, alert.Identifier)
+	h.Current = alert
+	/*
+		for i, updateInfo := range alert.Info {
+			previous, exits := h.Current[i]
+			if !exists {
+				continue
+			}
+		}
+	*/
+}
+
+/*
 func (h *AlertHistory) Push(alert *naadxml.Alert) {
 	h.Previous = append(h.Previous, h.Current)
 	h.Current = alert
 	h.LastUpdate = alert.Sent
 }
+*/
 
 func (c *Cache) DumpHistory() CacheHistory {
 	c.RLock()
@@ -124,6 +187,37 @@ func (c *Cache) DumpHistory() CacheHistory {
 	return cacheHistory
 }
 
+type AlertList []*naadxml.Alert
+
+func (l AlertList) Swap(i, j int) {
+	l[i], l[j] = l[j], l[i]
+}
+
+func (l AlertList) Len() int {
+	return len(l)
+}
+
+func (l AlertList) Less(i, j int) bool {
+	if l[i].Sent != l[j].Sent {
+		return l[i].Sent.After(l[j].Sent)
+	}
+	return l[i].Identifier < l[j].Identifier
+}
+
+func (c *Cache) DumpAlerts() AlertList {
+	c.RLock()
+	defer c.RUnlock()
+	list := make([]*naadxml.Alert, len(c.alerts))
+	var index int
+	for _, entry := range c.alerts {
+		list[index] = entry
+		index++
+	}
+	alertList := AlertList(list)
+	sort.Sort(alertList)
+	return alertList
+}
+
 type CacheHistory []*AlertHistory
 
 func (h CacheHistory) Swap(i, j int) {
@@ -135,5 +229,13 @@ func (h CacheHistory) Len() int {
 }
 
 func (h CacheHistory) Less(i, j int) bool {
-	return h[i].LastUpdate.After(h[j].LastUpdate)
+	// If both were updated at the same time, sort by sent date
+	if h[i].LastUpdate != h[j].LastUpdate {
+		return h[i].LastUpdate.After(h[j].LastUpdate)
+	}
+	if h[i].Original.Sent != h[j].Original.Sent {
+		return h[i].Original.Sent.After(h[j].Original.Sent)
+	}
+	return h[i].Original.Identifier < h[j].Original.Identifier
+
 }

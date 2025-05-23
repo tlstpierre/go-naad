@@ -26,8 +26,15 @@
           
         </tr>
         {{ range $alertList }}
-        {{ $colour := "green"}}
-        {{ if .Expired }}{{ $colour = "grey" }} {{ end }}
+        {{ $colour := "white"}}
+        {{ $alert := index .Info "en-CA"}}
+        {{ if .Expired }}{{ $colour = "grey" }} 
+        {{ else if eq $alert.Urgency "Past"}}{{ $colour = "green"}}
+        {{ else if eq $alert.Severity "Extreme"}}{{ $colour = "red"}}
+        {{ else if eq $alert.Severity "Severe"}}{{ $colour = "orange"}}
+        {{ else if eq $alert.Severity "Moderate"}}{{ $colour = "yellow"}}
+        {{ else if eq $alert.Severity "Minor"}}{{ $colour = "blue"}}
+        {{ end }}
         <tr style="background: {{$colour}};">
           <td><a href="alertdetail/{{ .Identifier | idencode }}">{{ .Identifier }}</a></td>
           <td>{{ .Sender }}</td>

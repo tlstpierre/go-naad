@@ -24,14 +24,21 @@ func displayInfo(alert *naadxml.AlertInfo) {
 		fmt.Printf("Type:\t%s\n", msg.MsgType)
 	*/
 	var matchesCAP bool
+	var matchesLocation bool
+	var areaDescription string
 	for _, code := range configData.CAPCodes {
-		matchesCAP = naadfilter.IsCAPArea(alert.Area, code)
-		if matchesCAP {
-			break
+		for _, area := range alert.Area {
+			if naadfilter.IsCAPArea(area, code) {
+				matchesCAP = true
+				areaDescription = area.Description
+			}
+
+			if naadfilter.IsPlaceInArea(area, thisPlace) {
+				matchesLocation = true
+				areaDescription = area.Description
+			}
 		}
 	}
-
-	matchesLocation := naadfilter.IsPlaceInArea(alert.Area, thisPlace)
 
 	localAlert := matchesCAP || matchesLocation
 
@@ -39,17 +46,13 @@ func displayInfo(alert *naadxml.AlertInfo) {
 		log.Warnf("\n\nThis alert is local\nCAP Code match: %v Lat/Lon match: %v\n\n", matchesCAP, matchesLocation)
 	}
 
-	if naadfilter.IsPlaceInArea(alert.Area, thisPlace) {
-		log.Warnf("Our place is %+v", thisPlace)
-		log.Warnf("Alert area is %+v", *alert.Area.Polygon)
-	}
 	fmt.Printf("\nAlert in %s\n", alert.Language)
 	fmt.Printf("Event\t%s\n", alert.Event)
 	fmt.Printf("Urgency\t%s\n", alert.Urgency)
 	fmt.Printf("Severity\t%s\n", alert.Severity)
 	fmt.Printf("Certainty\t%s\n", alert.Certainty)
 	fmt.Printf("Headline\t%s\n", alert.Headline)
-	fmt.Printf("Location\t%s\n", alert.Area.Description)
+	fmt.Printf("Location\t%s\n", areaDescription)
 	fmt.Printf("Description\t%s\n", alert.Description)
 	if alert.SoremLayer != nil {
 		log.Infof("SoremLayer is %+v", *alert.SoremLayer)

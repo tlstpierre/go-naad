@@ -16,7 +16,7 @@ import (
 
 const (
 	AlertCooldown    = 1 * time.Minute
-	AnnounceCooldown = 10 * time.Second
+	AnnounceCooldown = 20 * time.Second
 )
 
 func (t *TransmitChannel) GetAudio(info *naadxml.AlertInfo) ([]int16, uint16, error) {
@@ -53,7 +53,7 @@ func (t *TransmitChannel) GetAudio(info *naadxml.AlertInfo) ([]int16, uint16, er
 	}
 
 	if text == "" {
-		text = TTSText(info)
+		text = TTSText(info, t.Config.SpeakContent, t.Config.StripComments)
 	}
 	log.Infof("Spoken text will be %s", text)
 	audio, err = t.speaker.Speak(text)
@@ -99,6 +99,7 @@ func uncompressAudio(resource *naadxml.Resource) ([]int16, uint16, error) {
 
 func (t *TransmitChannel) addTone(info *naadxml.AlertInfo, audio []int16, rate uint16) []int16 {
 	var emergency bool
+	speechTime := time.Duration(len(audio)*int(rate)) * time.Second
 	if info.SoremLayer != nil {
 		if info.SoremLayer.BroadcastImmediate {
 			log.Info("Setting emergency to true due to Sorem Broadcast Immediate")
@@ -113,7 +114,7 @@ func (t *TransmitChannel) addTone(info *naadxml.AlertInfo, audio []int16, rate u
 	if emergency {
 		if time.Since(t.LastAlertTone) > AlertCooldown {
 			audio := append(GenerateCAAS(uint32(rate)), audio...)
-			t.LastAlertTone = time.Now()
+			t.LastAlertTone = time.Now().Add(speechTime)
 			return audio
 		} else {
 			log.Warnf("Sent last CAAS tone at %s - not sending it again", t.LastAlertTone)
@@ -122,7 +123,7 @@ func (t *TransmitChannel) addTone(info *naadxml.AlertInfo, audio []int16, rate u
 	}
 
 	if time.Since(t.LastAnnounceTone) > AnnounceCooldown {
-		t.LastAnnounceTone = time.Now()
+		t.LastAnnounceTone = time.Now().Add(speechTime)
 		audio = append(AnnounceChime(uint32(rate)), audio...)
 	}
 	return audio

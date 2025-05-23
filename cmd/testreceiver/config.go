@@ -3,27 +3,21 @@ package main
 import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
+	"github.com/tlstpierre/go-naad/pkg/naad-audio"
 	"github.com/tlstpierre/mc-audio/pkg/piper-tts"
 	"gopkg.in/yaml.v2"
 	"os"
 )
 
 type Config struct {
-	StreamServers  []string                 `yaml:"streamservers"`
-	ArchiveServers []string                 `yaml:"archiveservers"`
-	CAPCodes       []string                 `yaml:"capcodes"`
-	Lat            float64                  `yaml:"lat"`
-	Lon            float64                  `yaml:"lon"`
-	WebListen      string                   `yaml:"weblisten"`
-	TTSConfig      pipertts.PiperConfig     `yaml:"ttsconfig"`
-	Channels       map[string]ChannelConfig `yaml:"channels"`
-}
-
-type ChannelConfig struct {
-	Addresses []string `yaml:"addresses"`
-	Language  string   `yaml:"language"`
-	Voice     string   `yaml:"voice"`
-	CAPCodes  []string `yaml:"capcodes"`
+	StreamServers  []string                           `yaml:"streamservers"`
+	ArchiveServers []string                           `yaml:"archiveservers"`
+	CAPCodes       []string                           `yaml:"capcodes"`
+	Lat            float64                            `yaml:"lat"`
+	Lon            float64                            `yaml:"lon"`
+	WebListen      string                             `yaml:"weblisten"`
+	TTSConfig      pipertts.PiperConfig               `yaml:"ttsconfig"`
+	Channels       map[string]naadaudio.ChannelConfig `yaml:"channels"`
 }
 
 // Initialize a config object with default values
@@ -51,8 +45,11 @@ func (c *Config) Initialize() {
 			VoicePath:  "/opt/piper",
 			Voice:      "en_GB-alan-low",
 		},
-		Channels: map[string]ChannelConfig{
-			"test": ChannelConfig{
+		Channels: map[string]naadaudio.ChannelConfig{
+			"test": naadaudio.ChannelConfig{
+				SpeakContent:  true,
+				SoremOnly:     false,
+				StripComments: true,
 				Addresses: []string{
 					"[FF05:0:0:0:0:0:1:1010]:5004",
 				},

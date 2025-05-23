@@ -3,7 +3,8 @@
   </head>
   <body>
     <fieldset>
-      <legend>Alert Detail</legend>
+      <legend>Alert Detail (current)</legend>
+    <p>{{ .Alert.Note }}</p>
     <table>
       <tr>
         <th>
@@ -44,6 +45,9 @@
         </th>
         <th>
           Sender Name
+        </th>
+        <th>
+          Area
         </th>
       </tr>
       <tr>
@@ -222,6 +226,37 @@
             </tr>
           {{ end }}
         {{ end }}
+        </table>
+      </fieldset>
+      <fieldset>
+        <legend>References</legend>
+        <table>
+          <tr>
+            <th>Sender</th>
+            <th>Sent</th>
+            <th>Identifier</th>
+          </tr>
+          {{ range .History.Current.References.References }}
+          <tr>
+            <td>{{ .Sender }}</td>
+            <td>{{ .Sent }}</td>
+            <td><a href="{{ .Identifier | idencode }}" target="_blank">{{ .Identifier }}</a></td>
+          </tr>
+          {{ end }}
+        </table>
+      </fieldset>
+      <fieldset>
+        <legend>Updated By</legend>
+        <table>
+          <tr>
+            <th>Update Message ID</th>
+          </tr>
+          {{ range .History.UpdatedBy }}
+          <tr>
+            <td><a href="{{ . | idencode }}" target="_blank">{{ . }}</a></td>
+          </tr>
+          {{ end }}
+        </table>
       </fieldset>
     </fieldset>
   </body>

@@ -58,6 +58,7 @@ func main() {
 	wg = &sync.WaitGroup{}
 
 	NaadCache = naadcache.NewCache()
+	NaadCache.SetArchive(configData.ArchiveServers)
 
 	rxchan := make(chan *naadxml.Alert, 4)
 	infochan := make(chan *naadxml.AlertInfo, 16)

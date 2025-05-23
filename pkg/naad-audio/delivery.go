@@ -13,10 +13,20 @@ import (
 	"time"
 )
 
+type ChannelConfig struct {
+	SpeakContent  bool     `yaml:"speakcontent"`
+	SoremOnly     bool     `yaml:"soremonly"`
+	StripComments bool     `yaml:"stripcomments"`
+	Addresses     []string `yaml:"addresses"`
+	Language      string   `yaml:"language"`
+	Voice         string   `yaml:"voice"`
+	CAPCodes      []string `yaml:"capcodes"`
+}
+
 type TransmitChannel struct {
 	LocalAudio       bool
 	Multicast        bool
-	Language         string
+	Config           ChannelConfig
 	TonesPath        string
 	Address          []string
 	TTSConfig        pipertts.PiperConfig
@@ -28,12 +38,12 @@ type TransmitChannel struct {
 	wg               *sync.WaitGroup
 }
 
-func NewTransmitter(ch chan *naadxml.Alert, language string, ctx context.Context, wg *sync.WaitGroup) (*TransmitChannel, error) {
+func NewTransmitter(ch chan *naadxml.Alert, config ChannelConfig, ctx context.Context, wg *sync.WaitGroup) (*TransmitChannel, error) {
 	tx := &TransmitChannel{
 		alertChan: ch,
 		ctx:       ctx,
-		Language:  language,
 		wg:        wg,
+		Config:    config,
 	}
 	wg.Add(1)
 	go tx.handleMessages()
@@ -57,7 +67,17 @@ func (t *TransmitChannel) handleMessages() {
 			return
 		case msg := <-t.alertChan:
 			for _, alertInfo := range msg.Info {
-				if strings.EqualFold(alertInfo.Language, t.Language) {
+				if strings.EqualFold(alertInfo.Language, t.Config.Language) {
+					if t.Config.SoremOnly {
+						if alertInfo.SoremLayer == nil {
+							log.Infof("Skipping announcement for %s - missing Sorem layer", alertInfo.Headline)
+							continue
+						}
+						if alertInfo.SoremLayer.BroadcastText == "" {
+							log.Infof("Skipping announcement for %s - no broadcast text", alertInfo.Headline)
+							continue
+						}
+					}
 					audio, samplerate, err := t.GetAudio(alertInfo)
 					log.Infof("Got audio at samplerate %d", samplerate)
 					if err != nil {

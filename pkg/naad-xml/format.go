@@ -15,8 +15,8 @@ type Alert struct {
 	MsgType    MessageType  `xml:"msgType"`
 	Scope      AlertScope   `xml:"scope"`
 	Code       []string     `xml:"code"`
-	Info       []*AlertInfo `xml:"info"`
 	Note       string       `xml:"note"`
+	Info       []*AlertInfo `xml:"info"`
 	References References   `xml:"references"`
 	Layers     []Layer      `xml:"-"`
 	Profiles   []Profile    `xml:"-"`
@@ -50,7 +50,7 @@ const (
 	PrivateScope               = "Private"
 )
 
-// TODO type these fields instead of string
+// Describes an emergency alert
 type AlertInfo struct {
 	Language    string         `xml:"language"`
 	Category    []Category     `xml:"category"`
@@ -68,7 +68,7 @@ type AlertInfo struct {
 	Description string         `xml:"description"`
 	Instruction string         `xml:"instruction"`
 	Parameters  []Parameter    `xml:"parameter"`
-	Area        AlertArea      `xml:"area"`
+	Area        []AlertArea    `xml:"area"`
 	Resources   []Resource     `xml:"resource"`
 	SoremLayer  *Sorem         `xml:"-"`
 	ECLayer     *EC            `xml:"-"`

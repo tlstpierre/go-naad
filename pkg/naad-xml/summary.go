@@ -1,6 +1,7 @@
 package naadxml
 
 import (
+	"strings"
 	"time"
 )
 
@@ -30,6 +31,7 @@ type InfoSummary struct {
 	SenderName  string
 	Headline    string
 	Description string
+	Instruction string
 	Area        string
 	SoremLayer  *Sorem
 	ECLayer     *EC
@@ -66,7 +68,7 @@ func (a Alert) Summary() AlertSummary {
 }
 
 func (i AlertInfo) Summary() InfoSummary {
-	return InfoSummary{
+	summary := InfoSummary{
 		Language:    i.Language,
 		Category:    i.Category,
 		Event:       i.Event,
@@ -78,9 +80,15 @@ func (i AlertInfo) Summary() InfoSummary {
 		SenderName:  i.SenderName,
 		Headline:    i.Headline,
 		Description: i.Description,
-		Area:        i.Area.Description,
+		Instruction: i.Instruction,
 		SoremLayer:  i.SoremLayer,
 		ECLayer:     i.ECLayer,
 		CAPLayer:    i.CAPLayer,
 	}
+	areas := make([]string, len(i.Area))
+	for index, v := range i.Area {
+		areas[index] = v.Description
+	}
+	summary.Area = strings.Join(areas, ", ")
+	return summary
 }

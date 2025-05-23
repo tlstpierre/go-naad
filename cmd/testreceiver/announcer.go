@@ -17,7 +17,7 @@ var (
 )
 
 type Announcer struct {
-	Config      ChannelConfig
+	Config      naadaudio.ChannelConfig
 	transmitter *naadaudio.TransmitChannel
 	msgChan     chan *naadxml.Alert
 }
@@ -32,7 +32,7 @@ func AnnouncerInit(ctx context.Context, wg *sync.WaitGroup) error {
 			msgChan: make(chan *naadxml.Alert, 10),
 		}
 		var err error
-		announcer.transmitter, err = naadaudio.NewTransmitter(announcer.msgChan, channelConfig.Language, ctx, wg)
+		announcer.transmitter, err = naadaudio.NewTransmitter(announcer.msgChan, channelConfig, ctx, wg)
 		if err != nil {
 			return err
 		}
@@ -48,8 +48,8 @@ func AnnouncerInit(ctx context.Context, wg *sync.WaitGroup) error {
 }
 
 func AnnounceMessage(msg *naadxml.Alert) {
-	log.Infof("Announcing message %s", msg.Identifier)
 	for channel, announcer := range announcers {
+
 		var matched bool
 		if len(announcer.Config.CAPCodes) > 0 {
 			for _, code := range announcer.Config.CAPCodes {
@@ -66,6 +66,7 @@ func AnnounceMessage(msg *naadxml.Alert) {
 		if !matched {
 			continue
 		}
+		log.Infof("Announcing message %s to channel %s", msg.Identifier, channel)
 		announcer.msgChan <- msg
 	}
 }

@@ -31,6 +31,10 @@ func NewServer(listen string, cache *naadcache.Cache) (*Server, error) {
 		HandleGetSummary(w, r, cache)
 	}
 
+	handleAlertCache := func(w http.ResponseWriter, r *http.Request) {
+		HandleAlertCache(w, r, cache)
+	}
+
 	handleAlertSummary := func(w http.ResponseWriter, r *http.Request) {
 		HandleAlertSummary(w, r, cache)
 	}
@@ -43,6 +47,7 @@ func NewServer(listen string, cache *naadcache.Cache) (*Server, error) {
 	r.HandleFunc("/api/history/{id}", handleGetAlert).Methods("GET")
 	r.HandleFunc("/api/summary", handleGetSummary).Methods("GET")
 
+	r.HandleFunc("/alertcache", handleAlertCache).Methods("GET")
 	r.HandleFunc("/alertsummary", handleAlertSummary).Methods("GET")
 	r.HandleFunc("/alertdetail/{id}", handleAlertDetail).Methods("GET")
 
