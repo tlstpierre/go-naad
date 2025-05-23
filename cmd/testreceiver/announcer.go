@@ -6,6 +6,7 @@ import (
 	"github.com/tlstpierre/go-naad/pkg/naad-audio"
 	"github.com/tlstpierre/go-naad/pkg/naad-filter"
 	"github.com/tlstpierre/go-naad/pkg/naad-xml"
+	"time"
 	//	"github.com/tlstpierre/mc-audio/pkg/piper-tts"
 	"sync"
 )
@@ -17,9 +18,10 @@ var (
 )
 
 type Announcer struct {
-	Config      naadaudio.ChannelConfig
-	transmitter *naadaudio.TransmitChannel
-	msgChan     chan *naadxml.Alert
+	Config        naadaudio.ChannelConfig
+	transmitter   *naadaudio.TransmitChannel
+	dupSuppressor *naadfilter.UpdateSuppressor
+	msgChan       chan *naadxml.Alert
 }
 
 func AnnouncerInit(ctx context.Context, wg *sync.WaitGroup) error {
@@ -42,6 +44,7 @@ func AnnouncerInit(ctx context.Context, wg *sync.WaitGroup) error {
 		}
 		announcer.transmitter.AddTTS(piperConfig)
 		announcer.transmitter.AddMulticast(channelConfig.Addresses)
+		announcer.dupSuppressor = naadfilter.NewUpdateSuppressor(2 * time.Hour)
 		announcers[channel] = announcer
 	}
 	return nil
@@ -66,7 +69,13 @@ func AnnounceMessage(msg *naadxml.Alert) {
 		if !matched {
 			continue
 		}
+		announcer.dupSuppressor.Insert(msg)
+		if announcer.dupSuppressor.IsDuplicate(msg) {
+			log.Infof("Skipping message %s to channel %s because it hasn't changed enough", msg.Identifier, channel)
+			continue
+		}
 		log.Infof("Announcing message %s to channel %s", msg.Identifier, channel)
 		announcer.msgChan <- msg
+		announcer.dupSuppressor.Clean()
 	}
 }
