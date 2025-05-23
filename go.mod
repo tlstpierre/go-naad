@@ -9,6 +9,7 @@ require (
 	github.com/golang/geo v0.0.0-20230421003525-6adc56603217
 	github.com/gorilla/mux v1.8.1
 	github.com/hajimehoshi/go-mp3 v0.3.4
+	github.com/shenjinti/go722 v0.0.0-20241018003611-642cc8091058
 	github.com/sirupsen/logrus v1.9.3
 	github.com/tlstpierre/mc-audio v0.0.0-00010101000000-000000000000
 	gopkg.in/yaml.v2 v2.4.0

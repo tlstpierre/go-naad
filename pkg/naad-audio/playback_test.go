@@ -8,6 +8,8 @@ import (
 	//	"github.com/davecgh/go-spew/spew"
 	"bytes"
 	"context"
+	"encoding/binary"
+	"github.com/shenjinti/go722"
 	log "github.com/sirupsen/logrus"
 	"github.com/tlstpierre/mc-audio/pkg/g711"
 	"github.com/tlstpierre/mc-audio/pkg/mc-transmit"
@@ -19,7 +21,7 @@ import (
 
 var (
 	testData    = flag.String("testdata", "../../testdata/", "Path to Pelmorex sample XML")
-	testAddress = flag.String("testaddress", "[FF05:0:0:0:0:0:1:1010]:5004", "Multicast address for testing audio")
+	testAddress = flag.String("testaddress", "[FF05:0:0:0:0:0:1:1010]:5006", "Multicast address for testing audio")
 	LogLevel    = flag.String("loglevel", "info", "The logging verbosity")
 	tx          *TransmitChannel
 	alertChan   = make(chan *naadxml.Alert, 1)
@@ -32,7 +34,14 @@ func TestMain(m *testing.M) {
 
 	var err error
 	wg := new(sync.WaitGroup)
-	tx, err = NewTransmitter(alertChan, "en-CA", context.TODO(), wg)
+	config := ChannelConfig{
+		SpeakContent:  true,
+		StripComments: true,
+		G722:          true,
+		Addresses:     []string{*testAddress},
+		Language:      "en-CA",
+	}
+	tx, err = NewTransmitter(alertChan, config, context.TODO(), wg)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -154,15 +163,23 @@ func TestChime(t *testing.T) {
 	mctx.Stop()
 }
 
-func TestAnnounceChime(t *testing.T) {
-	mctx, txerr := rtptransmit.NewSender([]string{*testAddress}, 0, 8000, 20)
+func TestAnnounceChimeG722(t *testing.T) {
+	mctx, txerr := rtptransmit.NewSender([]string{*testAddress}, 9, 16000, 20)
 	if txerr != nil {
 		t.Logf("problem creating multicast transmitter - %v", txerr)
 		t.Fail()
 		return
 	}
-	lowrate := AnnounceChime(8000)
-	encoded := g711.ULawEncode(lowrate)
+	lowrate := AnnounceChime(16000)
+	encoder := go722.NewG722Encoder(go722.Rate64000, go722.G722_DEFAULT)
+	g722Buf := new(bytes.Buffer)
+	err := binary.Write(g722Buf, binary.LittleEndian, lowrate)
+	if err != nil {
+		log.Errorf("Problem converting audio to little-endian for g722 encoder - %v", err)
+		t.Fail()
+		t.Log(err)
+	}
+	encoded := encoder.Encode(g722Buf.Bytes())
 	mctx.SendBuffer(bytes.NewBuffer(encoded), 160, context.TODO())
 	mctx.Stop()
 }

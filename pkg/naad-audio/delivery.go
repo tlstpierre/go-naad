@@ -3,6 +3,8 @@ package naadaudio
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
+	"github.com/shenjinti/go722"
 	log "github.com/sirupsen/logrus"
 	"github.com/tlstpierre/go-naad/pkg/naad-xml"
 	"github.com/tlstpierre/mc-audio/pkg/g711"
@@ -17,6 +19,7 @@ type ChannelConfig struct {
 	SpeakContent  bool     `yaml:"speakcontent"`
 	SoremOnly     bool     `yaml:"soremonly"`
 	StripComments bool     `yaml:"stripcomments"`
+	G722          bool     `yaml:"g722"`
 	Addresses     []string `yaml:"addresses"`
 	Language      string   `yaml:"language"`
 	Voice         string   `yaml:"voice"`
@@ -86,15 +89,35 @@ func (t *TransmitChannel) handleMessages() {
 					audio = t.addTone(alertInfo, audio, samplerate)
 					if t.Multicast {
 						log.Info("Channel has multicast output")
-						mctx, txerr := rtptransmit.NewSender(t.Address, 0, 8000, 20)
-						if txerr != nil {
-							log.Errorf("problem creating multicast transmitter - %v", txerr)
-							continue
+						if t.Config.G722 {
+							mctx, txerr := rtptransmit.NewSender(t.Address, 9, 16000, 20) // G722 actually uses 8k timestamps
+							if txerr != nil {
+								log.Errorf("problem creating multicast transmitter - %v", txerr)
+								continue
+							}
+							lowrate := rtptransmit.Downsample(audio, int(samplerate)/16000)
+							encoder := go722.NewG722Encoder(go722.Rate64000, go722.G722_DEFAULT)
+							g722Buf := new(bytes.Buffer)
+							err = binary.Write(g722Buf, binary.LittleEndian, lowrate)
+							if err != nil {
+								log.Errorf("Problem converting audio to little-endian for g722 encoder - %v", err)
+								continue
+							}
+							encoded := encoder.Encode(g722Buf.Bytes())
+							mctx.SendBuffer(bytes.NewBuffer(encoded), 160, t.ctx)
+							mctx.Stop()
+						} else {
+							mctx, txerr := rtptransmit.NewSender(t.Address, 0, 8000, 20) // G722 actually uses 8k timestamps
+							if txerr != nil {
+								log.Errorf("problem creating multicast transmitter - %v", txerr)
+								continue
+							}
+							lowrate := rtptransmit.Downsample(audio, int(samplerate)/8000)
+							encoded := g711.ULawEncode(lowrate)
+							mctx.SendBuffer(bytes.NewBuffer(encoded), 160, t.ctx)
+							mctx.Stop()
 						}
-						lowrate := rtptransmit.Downsample(audio, int(samplerate)/8000)
-						encoded := g711.ULawEncode(lowrate)
-						mctx.SendBuffer(bytes.NewBuffer(encoded), 160, t.ctx)
-						mctx.Stop()
+
 					}
 					if t.LocalAudio {
 						// TODO send to local audio output
