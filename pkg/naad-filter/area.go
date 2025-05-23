@@ -40,8 +40,10 @@ func IsPlaceInArea(area naadxml.AlertArea, place Place) bool {
 
 func IsPlaceInAlert(alert *naadxml.Alert, place Place) bool {
 	for _, info := range alert.Info {
-		if IsPlaceInArea(info.Area, place) {
-			return true
+		for _, area := range info.Area {
+			if IsPlaceInArea(area, place) {
+				return true
+			}
 		}
 	}
 	return false

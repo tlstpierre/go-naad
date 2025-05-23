@@ -21,8 +21,10 @@ func IsCAPArea(area naadxml.AlertArea, codematch string) bool {
 
 func AlertIsCAPArea(alert *naadxml.Alert, code string) bool {
 	for _, info := range alert.Info {
-		if IsCAPArea(info.Area, code) {
-			return true
+		for _, area := range info.Area {
+			if IsCAPArea(area, code) {
+				return true
+			}
 		}
 	}
 	return false
