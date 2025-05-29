@@ -144,14 +144,14 @@ func (r *ReceiverGroup) referenceFetcher() {
 				refMessage, err = ref.Fetch(httpclient, server)
 				if err != nil {
 					log.Error(err)
-				} else {
 					continue
 				}
+				r.deDuplicator.MarkReference(ref.Identifier)
+				r.deDuplicator.MarkMessage(refMessage.Identifier)
+				// Send the message onward
+				r.outChannel <- refMessage
+				break
 			}
-			r.deDuplicator.MarkReference(ref.Identifier)
-			r.deDuplicator.MarkMessage(refMessage.Identifier)
-			// Send the message onward
-			r.outChannel <- refMessage
 		}
 	}
 }
