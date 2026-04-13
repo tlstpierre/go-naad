@@ -6,7 +6,6 @@ import (
 	"github.com/tlstpierre/go-naad/pkg/naad-audio"
 	"github.com/tlstpierre/go-naad/pkg/naad-filter"
 	"github.com/tlstpierre/go-naad/pkg/naad-xml"
-	"gitlab.com/timstpierre/mc-audio/pkg/audio"
 	"sync"
 	"time"
 )
@@ -26,14 +25,10 @@ func AnnouncerInit(ctx context.Context, wg *sync.WaitGroup) error {
 	announcers = make(map[string]*Announcer, len(configData.Channels))
 
 	// Only initialize the audio backend if any channel needs local audio
-	var audioBackend audio.Backend
+	var audioBackend naadaudio.AudioBackend
 	for _, channelConfig := range configData.Channels {
 		if channelConfig.LocalAudio {
-			var err error
-			audioBackend, err = audio.NewMalgoBackend()
-			if err != nil {
-				log.Errorf("Could not initialize audio backend: %v", err)
-			}
+			audioBackend = newAudioBackend()
 			break
 		}
 	}

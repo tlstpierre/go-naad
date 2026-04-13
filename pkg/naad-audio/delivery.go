@@ -7,7 +7,6 @@ import (
 	"github.com/shenjinti/go722"
 	log "github.com/sirupsen/logrus"
 	"github.com/tlstpierre/go-naad/pkg/naad-xml"
-	"gitlab.com/timstpierre/mc-audio/pkg/audio"
 	"gitlab.com/timstpierre/mc-audio/pkg/g711"
 	"gitlab.com/timstpierre/mc-audio/pkg/mc-transmit"
 	"gitlab.com/timstpierre/mc-audio/pkg/piper-tts"
@@ -41,13 +40,13 @@ type TransmitChannel struct {
 	LastAlertTone    time.Time
 	LastAnnounceTone time.Time
 	speaker          *pipertts.Speaker
-	playbackDev      audio.PlaybackDevice
+	playbackDev      LocalPlayback
 	alertChan        chan *naadxml.Alert
 	ctx              context.Context
 	wg               *sync.WaitGroup
 }
 
-func NewTransmitter(ch chan *naadxml.Alert, config ChannelConfig, ctx context.Context, wg *sync.WaitGroup, audioBackend audio.Backend) (*TransmitChannel, error) {
+func NewTransmitter(ch chan *naadxml.Alert, config ChannelConfig, ctx context.Context, wg *sync.WaitGroup, audioBackend AudioBackend) (*TransmitChannel, error) {
 	if config.LocalAudioRate == 0 {
 		config.LocalAudioRate = 48000
 	}
@@ -62,12 +61,7 @@ func NewTransmitter(ch chan *naadxml.Alert, config ChannelConfig, ctx context.Co
 			log.Warn("Local audio requested but no audio backend available -- skipping")
 		} else {
 			frameSize := config.LocalAudioRate / 50 // 20ms frames
-			dev, err := audioBackend.OpenPlayback(audio.PlaybackConfig{
-				DeviceID:   config.LocalAudioDevice,
-				SampleRate: config.LocalAudioRate,
-				Channels:   1,
-				FrameSize:  frameSize,
-			})
+			dev, err := audioBackend.OpenPlayback(config.LocalAudioDevice, config.LocalAudioRate, 1, frameSize)
 			if err != nil {
 				return nil, err
 			}
