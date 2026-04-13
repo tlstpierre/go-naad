@@ -7,7 +7,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/tlstpierre/go-naad/pkg/naad-filter"
 	"github.com/tlstpierre/go-naad/pkg/naad-xml"
-	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -23,9 +22,10 @@ type ReceiverGroup struct {
 	outChannel     chan *naadxml.Alert
 	fetchChannel   chan naadxml.Reference
 	deDuplicator   *naadfilter.DeDuplicate
+	fetchTracker   *naadxml.FetchTracker
 }
 
-func NewReceiverGroup(sources []string, archiveServers []string, delivery chan *naadxml.Alert, ctx context.Context) (*ReceiverGroup, error) {
+func NewReceiverGroup(sources []string, archiveServers []string, delivery chan *naadxml.Alert, ctx context.Context, tracker *naadxml.FetchTracker) (*ReceiverGroup, error) {
 	rxg := &ReceiverGroup{
 		ctx:            ctx,
 		wg:             &sync.WaitGroup{},
@@ -35,6 +35,7 @@ func NewReceiverGroup(sources []string, archiveServers []string, delivery chan *
 		deDuplicator:   naadfilter.NewDeDuplicate(),
 		Receivers:      make(map[string]Receiver, len(sources)),
 		ArchiveServers: archiveServers,
+		fetchTracker:   tracker,
 	}
 
 	msgHandler := func(msg *naadxml.Alert) error {
@@ -69,7 +70,7 @@ func NewReceiverGroup(sources []string, archiveServers []string, delivery chan *
 }
 
 func (g *ReceiverGroup) Start() error {
-	g.wg.Add(1)
+	g.wg.Add(2)
 	go g.receiverHandler()
 	go g.referenceFetcher()
 
@@ -128,9 +129,7 @@ func (r *ReceiverGroup) receiverHandler() {
 }
 
 func (r *ReceiverGroup) referenceFetcher() {
-	httpclient := &http.Client{
-		Timeout: 10 * time.Second,
-	}
+	defer r.wg.Done()
 
 	for {
 		select {
@@ -138,20 +137,15 @@ func (r *ReceiverGroup) referenceFetcher() {
 			return
 		case ref := <-r.fetchChannel:
 			log.Infof("Fetching referenced message %s", ref.Identifier)
-			var refMessage *naadxml.Alert
-			for _, server := range r.ArchiveServers {
-				var err error
-				refMessage, err = ref.Fetch(httpclient, server)
-				if err != nil {
-					log.Error(err)
-					continue
-				}
-				r.deDuplicator.MarkReference(ref.Identifier)
-				r.deDuplicator.MarkMessage(refMessage.Identifier)
-				// Send the message onward
-				r.outChannel <- refMessage
-				break
+			refMessage, err := r.fetchTracker.Fetch(r.ctx, ref)
+			if err != nil {
+				log.Errorf("Could not fetch reference %s - %v", ref.Identifier, err)
+				continue
 			}
+			log.Infof("Fetched %s from archive", refMessage.Identifier)
+			r.deDuplicator.MarkReference(ref.Identifier)
+			r.deDuplicator.MarkMessage(refMessage.Identifier)
+			r.outChannel <- refMessage
 		}
 	}
 }

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/tlstpierre/go-naad/pkg/naad-audio"
-	"github.com/tlstpierre/mc-audio/pkg/piper-tts"
+	"gitlab.com/timstpierre/mc-audio/pkg/piper-tts"
 	"gopkg.in/yaml.v2"
 	"os"
 )

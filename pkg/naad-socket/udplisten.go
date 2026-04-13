@@ -25,9 +25,9 @@ func NewListener(address string) (*Listener, error) {
 		return nil, fmt.Errorf("Need host and port for UDP socket")
 	}
 	listener := &Listener{
-		ctx: context.Background(),
-		wg:  new(sync.WaitGroup),
+		wg: new(sync.WaitGroup),
 	}
+	listener.ctx, listener.cancelFunc = context.WithCancel(context.Background())
 	var err error
 	listener.addr, err = net.ResolveUDPAddr("udp", address)
 	if err != nil {
@@ -52,6 +52,7 @@ func (r *Listener) Connect() error {
 }
 
 func (r *Listener) Disconnect() {
+	r.cancelFunc()
 	r.socket.Close()
 	r.wg.Wait()
 }

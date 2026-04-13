@@ -1,6 +1,7 @@
 package naadxml
 
 import (
+	"context"
 	"encoding/xml"
 	"fmt"
 	//	"github.com/google/uuid"
@@ -74,8 +75,16 @@ func addSubstitution(input string) string {
 }
 
 func (r Reference) Fetch(client *http.Client, server string) (*Alert, error) {
+	return r.FetchWithContext(context.Background(), client, server)
+}
+
+func (r Reference) FetchWithContext(ctx context.Context, client *http.Client, server string) (*Alert, error) {
 	url := r.URL(server)
-	resp, err := client.Get(url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("Could not create request for ref %s - %v", r.Identifier, err)
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("Could not retrieve message ref %s - %v", r.Identifier, err)
 	}

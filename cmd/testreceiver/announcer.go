@@ -69,11 +69,11 @@ func AnnounceMessage(msg *naadxml.Alert) {
 		if !matched {
 			continue
 		}
-		announcer.dupSuppressor.Insert(msg)
 		if announcer.dupSuppressor.IsDuplicate(msg) {
 			log.Infof("Skipping message %s to channel %s because it hasn't changed enough", msg.Identifier, channel)
 			continue
 		}
+		announcer.dupSuppressor.Insert(msg)
 		log.Infof("Announcing message %s to channel %s", msg.Identifier, channel)
 		announcer.msgChan <- msg
 		announcer.dupSuppressor.Clean()

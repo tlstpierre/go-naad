@@ -46,7 +46,6 @@ func (p *Processor) run() {
 				log.Warnf("Problem processing alert - %v", err)
 			}
 			AnnounceMessage(alert)
-			continue // Just to keep it simple for now
 			for _, info := range alert.Info {
 				if info.Language != "en-CA" {
 					continue

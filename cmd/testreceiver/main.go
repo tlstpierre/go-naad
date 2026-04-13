@@ -8,6 +8,7 @@ import (
 	"github.com/tlstpierre/go-naad/pkg/naad-socket"
 	"github.com/tlstpierre/go-naad/pkg/naad-web"
 	"github.com/tlstpierre/go-naad/pkg/naad-xml"
+	"net/http"
 	"io"
 	"os"
 	"os/signal"
@@ -57,13 +58,19 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	wg = &sync.WaitGroup{}
 
+	fetchTracker := naadxml.NewFetchTracker(
+		&http.Client{Timeout: 10 * time.Second},
+		configData.ArchiveServers,
+	)
+
 	NaadCache = naadcache.NewCache()
 	NaadCache.SetArchive(configData.ArchiveServers)
+	NaadCache.SetFetchTracker(fetchTracker)
 
 	rxchan := make(chan *naadxml.Alert, 4)
 	infochan := make(chan *naadxml.AlertInfo, 16)
 	var rxg *naadsocket.ReceiverGroup
-	rxg, err = naadsocket.NewReceiverGroup(configData.StreamServers, configData.ArchiveServers, rxchan, ctx)
+	rxg, err = naadsocket.NewReceiverGroup(configData.StreamServers, configData.ArchiveServers, rxchan, ctx, fetchTracker)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -90,6 +97,7 @@ func main() {
 	// catch all signals since not explicitly listing
 	signal.Notify(sigs)
 	cacheCleaner := time.NewTicker(1 * time.Hour)
+	fetchCleaner := time.NewTicker(1 * time.Minute)
 	for {
 		select {
 		case s := <-sigs:
@@ -100,7 +108,8 @@ func main() {
 			}
 		case <-cacheCleaner.C:
 			NaadCache.Clean()
-
+		case <-fetchCleaner.C:
+			fetchTracker.CleanCompleted()
 		case info := <-infochan:
 			displayInfo(info)
 		}

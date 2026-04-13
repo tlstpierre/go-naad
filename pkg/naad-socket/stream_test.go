@@ -15,7 +15,7 @@ var (
 	UDPListen    = flag.String("udplisten", "224.0.10.10:25555", "UDP listen address and port")
 	archive1     = flag.String("archivehost1", "capcp1.naad-adna.pelmorex.com", "Archive host 1")
 	LogLevel     = flag.String("loglevel", "info", "The logging verbosity")
-	testReceiver *Receiver
+	testReceiver *TCPReceiver
 
 	dumpAlert = func(alert *naadxml.Alert) error {
 		spew.Dump(alert)
@@ -37,12 +37,12 @@ func TestMain(m *testing.M) {
 
 func TestTCP(t *testing.T) {
 	var err error
-	testReceiver, err = NewReceiver(*testHost)
+	testReceiver, err = NewTCPReceiver(*testHost)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	testReceiver.AddHandler(dumpAlert)
+	testReceiver.SetHandler(dumpAlert)
 	testReceiver.Connect()
 	time.Sleep(5 * time.Minute)
 	testReceiver.Disconnect()
@@ -55,8 +55,8 @@ func TestUDP(t *testing.T) {
 		t.Logf("Problem opening listener - %v", err)
 		return
 	}
-	testListener.AddHandler(dumpAlert)
+	testListener.SetHandler(dumpAlert)
 	testListener.Connect()
 	time.Sleep(5 * time.Minute)
-	testReceiver.Disconnect()
+	testListener.Disconnect()
 }

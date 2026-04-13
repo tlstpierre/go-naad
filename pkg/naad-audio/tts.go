@@ -3,7 +3,7 @@ package naadaudio
 import (
 	"fmt"
 	"github.com/tlstpierre/go-naad/pkg/naad-xml"
-	"github.com/tlstpierre/mc-audio/pkg/piper-tts"
+	"gitlab.com/timstpierre/mc-audio/pkg/piper-tts"
 	"strings"
 )
 

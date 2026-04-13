@@ -76,7 +76,7 @@ func uncompressAudio(resource *naadxml.Resource) ([]int16, uint16, error) {
 		}
 		samplerate := uint16(decoder.SampleRate())
 		log.Infof("Set up MP3 decoder at samplerate %d length %d", samplerate, decoder.Length())
-		highrate := make([]int16, samplerate*30)
+		highrate := make([]int16, 0, samplerate*30)
 		sample := make([]int16, 2)
 		for {
 			err := binary.Read(decoder, binary.LittleEndian, &sample)
@@ -99,7 +99,7 @@ func uncompressAudio(resource *naadxml.Resource) ([]int16, uint16, error) {
 
 func (t *TransmitChannel) addTone(info *naadxml.AlertInfo, audio []int16, rate uint16) []int16 {
 	var emergency bool
-	speechTime := time.Duration(len(audio)*int(rate)) * time.Second
+	speechTime := time.Duration(len(audio)/int(rate)) * time.Second
 	if info.SoremLayer != nil {
 		if info.SoremLayer.BroadcastImmediate {
 			log.Info("Setting emergency to true due to Sorem Broadcast Immediate")

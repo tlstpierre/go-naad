@@ -7,9 +7,10 @@ import (
 	"github.com/shenjinti/go722"
 	log "github.com/sirupsen/logrus"
 	"github.com/tlstpierre/go-naad/pkg/naad-xml"
-	"github.com/tlstpierre/mc-audio/pkg/g711"
-	"github.com/tlstpierre/mc-audio/pkg/mc-transmit"
-	"github.com/tlstpierre/mc-audio/pkg/piper-tts"
+	"gitlab.com/timstpierre/mc-audio/pkg/g711"
+	"gitlab.com/timstpierre/mc-audio/pkg/mc-transmit"
+	"gitlab.com/timstpierre/mc-audio/pkg/piper-tts"
+	"gitlab.com/timstpierre/mc-audio/pkg/resample"
 	"strings"
 	"sync"
 	"time"
@@ -82,10 +83,11 @@ func (t *TransmitChannel) handleMessages() {
 						}
 					}
 					audio, samplerate, err := t.GetAudio(alertInfo)
-					log.Infof("Got audio at samplerate %d", samplerate)
 					if err != nil {
 						log.Errorf("Problem getting audio for alert %s language %s - %v", msg.Identifier, alertInfo.Language, err)
+						continue
 					}
+					log.Infof("Got audio at samplerate %d", samplerate)
 					audio = t.addTone(alertInfo, audio, samplerate)
 					if t.Multicast {
 						log.Info("Channel has multicast output")
@@ -95,7 +97,7 @@ func (t *TransmitChannel) handleMessages() {
 								log.Errorf("problem creating multicast transmitter - %v", txerr)
 								continue
 							}
-							lowrate := rtptransmit.Downsample(audio, int(samplerate)/16000)
+							lowrate := resample.Downsample(audio, int(samplerate)/16000)
 							encoder := go722.NewG722Encoder(go722.Rate64000, go722.G722_DEFAULT)
 							g722Buf := new(bytes.Buffer)
 							err = binary.Write(g722Buf, binary.LittleEndian, lowrate)
@@ -112,7 +114,7 @@ func (t *TransmitChannel) handleMessages() {
 								log.Errorf("problem creating multicast transmitter - %v", txerr)
 								continue
 							}
-							lowrate := rtptransmit.Downsample(audio, int(samplerate)/8000)
+							lowrate := resample.Downsample(audio, int(samplerate)/8000)
 							encoded := g711.ULawEncode(lowrate)
 							mctx.SendBuffer(bytes.NewBuffer(encoded), 160, t.ctx)
 							mctx.Stop()

@@ -1,6 +1,7 @@
 package naadcache
 
 import (
+	"context"
 	log "github.com/sirupsen/logrus"
 	"github.com/tlstpierre/go-naad/pkg/naad-xml"
 	"net/http"
@@ -22,6 +23,7 @@ type Cache struct {
 	handled        uint64
 	httpClient     *http.Client
 	archiveServers []string
+	fetchTracker   *naadxml.FetchTracker
 	ArchiveTime    time.Duration
 }
 
@@ -54,52 +56,66 @@ func (c *Cache) SetArchive(servers []string) {
 	c.archiveServers = servers
 }
 
+func (c *Cache) SetFetchTracker(tracker *naadxml.FetchTracker) {
+	c.fetchTracker = tracker
+}
+
 func (c *Cache) Add(alert *naadxml.Alert) {
+	// First pass under lock: store the alert and identify which references
+	// need to be fetched from archive servers.
+	type missingRef struct {
+		reference naadxml.Reference
+		originalID string
+	}
+	var toFetch []missingRef
+
 	c.Lock()
-	defer c.Unlock()
 	c.handled++
 	c.alerts[alert.Identifier] = alert
 
 	if alert.IsUpdate() {
-		//		thisHistory.IsUpdate = true
 		for _, reference := range alert.References.References {
 			originalID := reference.Identifier
 			log.Infof("Updating original alert %s with %s", originalID, alert.Identifier)
 			history, hasOriginal := c.history[originalID]
 			if !hasOriginal {
-				for _, server := range c.archiveServers {
-					refAlert, err := reference.Fetch(c.httpClient, server)
-					if err == nil {
-						c.alerts[refAlert.Identifier] = refAlert
-						if !refAlert.IsUpdate() {
-							refHistory := newHistory(refAlert, refAlert.Identifier)
-							//						refHistory.UpdatedBy = append(refHistory.UpdatedBy, alert.Identifier)
-							refHistory.ApplyUpdate(alert)
-							c.history[refAlert.Identifier] = refHistory
-						} else {
-							log.Warnf("Referenced alert %s is also an update??", refAlert.Identifier)
-						}
-						log.Infof("Fetched %s from archive", refAlert.Identifier)
-						break
-					} else {
-						log.Errorf("Problem fetching previous missed message %s - %v", alert.Identifier, err)
-					}
-				}
+				toFetch = append(toFetch, missingRef{reference: reference, originalID: originalID})
 			} else {
 				history.ApplyUpdate(alert)
 			}
-			//			thisHistory.Updates = append(thisHistory.Updates, originalID)
 		}
 	} else {
 		thisHistory := newHistory(alert, alert.Identifier)
 		c.history[alert.Identifier] = thisHistory
 		thisHistory.IsOriginal = true
 	}
+	c.Unlock()
+
+	// Fetch missing originals outside the lock so we don't block readers.
+	// The FetchTracker deduplicates concurrent requests for the same identifier.
+	for _, missing := range toFetch {
+		refAlert, err := c.fetchTracker.Fetch(context.Background(), missing.reference)
+		if err != nil {
+			log.Errorf("Problem fetching previous missed message %s - %v", missing.originalID, err)
+			continue
+		}
+		log.Infof("Fetched %s from archive", refAlert.Identifier)
+		c.Lock()
+		c.alerts[refAlert.Identifier] = refAlert
+		if !refAlert.IsUpdate() {
+			refHistory := newHistory(refAlert, refAlert.Identifier)
+			refHistory.ApplyUpdate(alert)
+			c.history[refAlert.Identifier] = refHistory
+		} else {
+			log.Warnf("Referenced alert %s is also an update??", refAlert.Identifier)
+		}
+		c.Unlock()
+	}
 }
 
 func (c *Cache) Get(id string) (*naadxml.Alert, *AlertHistory) {
-	c.Lock()
-	defer c.Unlock()
+	c.RLock()
+	defer c.RUnlock()
 	alert := c.alerts[id]
 	history, found := c.history[id]
 	if found {
@@ -117,7 +133,7 @@ func (c *Cache) Clean() {
 			if info.Expires.After(time.Now()) {
 				break
 			}
-			log.Infof("Alert %s expired at %s", info.Expires)
+			log.Infof("Alert %s expired at %s", historyID, info.Expires)
 			history.Expired = info.Expires
 		}
 		if !history.Expired.IsZero() && time.Since(history.Expired) > c.ArchiveTime {

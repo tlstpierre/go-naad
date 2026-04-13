@@ -13,7 +13,7 @@ import (
 var (
 	testData    = flag.String("testdata", "../../testdata/", "Path to Pelmorex sample XML")
 	LogLevel    = flag.String("loglevel", "info", "The logging verbosity")
-	CAPLocation = flag.Int("location", 3520005, "The CAP location code to test")
+	CAPLocation = flag.String("location", "3520005", "The CAP location code to test")
 )
 
 func TestMain(m *testing.M) {
@@ -37,7 +37,7 @@ func TestCAPCode(t *testing.T) {
 		return
 	}
 	if AlertIsCAPArea(&testAlert, *CAPLocation) {
-		log.Infof("Alert matches location %d", *CAPLocation)
+		log.Infof("Alert matches location %s", *CAPLocation)
 	} else {
 		t.Fail()
 		t.Log("No location matched")
