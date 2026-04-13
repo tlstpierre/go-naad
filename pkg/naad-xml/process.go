@@ -6,13 +6,15 @@ import (
 )
 
 func (a *Alert) ProcessAlert() error {
+	var lastErr error
 	for index, info := range a.Info {
 		err := info.ProcessInfo()
 		if err != nil {
-			log.Errorf("Problem processing alert %d from %s", index, a.Identifier)
+			log.Errorf("Problem processing info block %d from alert %s - %v", index, a.Identifier, err)
+			lastErr = err
 		}
 	}
-	return nil
+	return lastErr
 }
 
 func (i *AlertInfo) ProcessInfo() error {

@@ -27,8 +27,8 @@ The `Place` interface abstracts different geographic shapes:
 | Type | Description | InPolygon | InCircle |
 |------|-------------|-----------|----------|
 | `Point` | Single lat/lon coordinate | s2 containment check | s2 cap containment check |
-| `Boundary` | Polygon defined by vertices | s2 loop intersection | **Not implemented** (returns false) |
-| `Circle` | Center point + radius in km | **Not implemented** (returns false) | s2 cap intersection |
+| `Boundary` | Polygon defined by vertices | s2 loop intersection | cap-loop intersection via `capIntersectsLoop` |
+| `Circle` | Center point + radius in km | cap-loop intersection via `capIntersectsLoop` | s2 cap intersection |
 
 Helper functions:
 - `PointFromLatLon(lat, lon)` -- creates a Point
@@ -65,16 +65,6 @@ Methods:
 
 ## Issues and Improvement Opportunities
 
-- **Boundary.InCircle() not implemented** (place.go:51-62). Returns `false`
-  unconditionally. The commented-out code shows an attempt using s2's
-  `ClosestEdgeQuery` but it was not completed. This means polygon-shaped
-  "places" (e.g., a municipal boundary) will never match circle-shaped alert
-  areas. For a point-based receiver location this is not a problem, but it
-  limits future use cases.
-
-- **Circle.InPolygon() not implemented** (place.go:82-84). Similarly returns
-  `false`. A circle-shaped receiver region cannot be tested against
-  polygon-shaped alert areas.
 
 - **UpdateSuppressor only examines the first Info block** (updatesuppress.go:
   32-46). Multi-language alerts have multiple info blocks; only `msg.Info[0]`

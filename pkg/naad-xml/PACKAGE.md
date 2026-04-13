@@ -55,12 +55,10 @@ directly to the CAP-CP enumeration values.
 
 ## Issues and Improvement Opportunities
 
-- **`ProcessAlert()` swallows errors** (process.go:8-16). Individual
-  `AlertInfo` processing errors are logged but the method always returns `nil`.
-  A caller has no way to know that processing partially failed. For a
-  reliability-critical system, surfacing these errors (or at least collecting
-  them) would let callers make informed decisions about whether the alert is
-  safe to act on.
+- **`ProcessAlert()` returns only the last error.** Individual `AlertInfo`
+  processing errors are now logged with the error detail and the last error
+  is returned to the caller. A multi-error collector would give callers
+  full visibility into partial failures.
 
 - **Resource fetch failures are silent to the caller.** `ProcessInfo()` logs
   resource-fetch errors but does not propagate them. If the broadcast audio

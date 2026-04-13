@@ -104,16 +104,10 @@ minor updates, and WPAS profiles.
 
 ### Remaining Issues and Cleanup Priorities
 
-1. **Error propagation.** `naad-xml/process.go` `ProcessAlert()` logs errors
-   but always returns nil. Callers cannot tell when processing was degraded.
-
-2. **No persistence.** The in-memory cache is lost on restart. Periodic
+1. **No persistence.** The in-memory cache is lost on restart. Periodic
    state serialization would improve resilience across process restarts.
 
-3. **Incomplete Place geometry.** `naad-filter/place.go` has two unimplemented
-   methods (`Boundary.InCircle`, `Circle.InPolygon`). These only matter for
-   non-point receiver locations but should be completed or explicitly
-   documented as unsupported.
+See each package's `PACKAGE.md` for package-specific issues.
 
 ### License
 

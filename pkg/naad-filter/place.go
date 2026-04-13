@@ -49,16 +49,8 @@ func (b Boundary) InPolygon(polygon *s2.Loop) bool {
 }
 
 func (b Boundary) InCircle(circle s2.Cap) bool {
-	// TODO Haven't figured out how to do this
-	/*
-		loop := s2.Loop(b)
-		shape := s2.NewShapeIndex()
-		shape.Add(&loop)
-		options := s2.NewClosestEdgeQueryOptions()
-		query := s2.NewClosestEdgeQuery(shape, options)
-		return !query.IsDistanceGreater(circle, 0)
-	*/
-	return false
+	loop := s2.Loop(b)
+	return capIntersectsLoop(circle, &loop)
 }
 
 // A circular area defined by a point and a radius
@@ -80,10 +72,34 @@ func CircleFromLLRadius(lat, lng, radius float64) Circle {
 }
 
 func (c Circle) InPolygon(polygon *s2.Loop) bool {
-	// TODO Don't know how to do this
-	return false
+	return capIntersectsLoop(s2.Cap(c), polygon)
 }
 
 func (c Circle) InCircle(circle s2.Cap) bool {
 	return circle.Intersects(s2.Cap(c))
+}
+
+// capIntersectsLoop checks whether an s2.Cap (circle) intersects an s2.Loop
+// (polygon). They intersect if:
+//   - the cap center is inside the loop, or
+//   - any vertex of the loop is inside the cap, or
+//   - any edge of the loop passes through the cap
+func capIntersectsLoop(cap s2.Cap, loop *s2.Loop) bool {
+	if loop.ContainsPoint(cap.Center()) {
+		return true
+	}
+	numVertices := loop.NumVertices()
+	for i := 0; i < numVertices; i++ {
+		if cap.ContainsPoint(loop.Vertex(i)) {
+			return true
+		}
+	}
+	capRadius := cap.Radius()
+	for i := 0; i < numVertices; i++ {
+		edge := loop.Edge(i)
+		if s2.DistanceFromSegment(cap.Center(), edge.V0, edge.V1) <= capRadius {
+			return true
+		}
+	}
+	return false
 }
