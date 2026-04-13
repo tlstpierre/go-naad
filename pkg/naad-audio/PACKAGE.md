@@ -29,9 +29,9 @@ The main audio output channel. Created per configured channel name (e.g.,
 - Language filter
 - CAP code filter
 - SOREM-only mode
-- Codec selection (G.722 or mu-law)
-- Multicast address list
-- TTS voice override
+- Per-destination multicast with independent codec selection
+- Optional local audio output via mc-audio playback API
+- TTS voice override and configurable pronunciation replacements
 - Cooldown timers for alert/announce tones
 
 ### ChannelConfig (delivery.go)
@@ -43,11 +43,14 @@ YAML-configurable per-channel settings:
 | `SpeakContent` | Include the full description text in TTS, not just the headline |
 | `SoremOnly` | Only announce alerts that have SOREM broadcast text |
 | `StripComments` | Remove `###`-delimited comments from description before TTS |
-| `G722` | Use G.722 codec (true) or mu-law/G.711 (false) |
-| `Addresses` | RTP multicast destination addresses |
+| `Multicast` | List of `MulticastDest` (address + payload type) for RTP output |
+| `LocalAudio` | Enable local soundcard output via mc-audio |
+| `LocalAudioDevice` | OS-specific device name/ID (empty = system default) |
+| `LocalAudioRate` | Local playback sample rate (default 48000) |
 | `Language` | Language code filter (e.g., `en-CA`) |
 | `Voice` | Override the global Piper TTS voice for this channel |
 | `CAPCodes` | Geographic filter: only announce alerts matching these codes |
+| `TTSReplacements` | Custom pronunciation fixups (default set if omitted) |
 
 ### Oscillator (tones.go)
 
@@ -85,16 +88,4 @@ domain names.
 
 ## Issues and Improvement Opportunities
 
-- **Local audio output not implemented** (delivery.go). The `LocalAudio`
-  flag is checked but the body is a TODO comment. No local speaker/soundcard
-  output is available.
-
-- **TTS pronunciation replacements are fragile** (tts.go). The replacements
-  are applied globally and can cause unintended substitutions (e.g.,
-  "St." -> "saint" would transform "St. Louis" correctly but also "St." at
-  end of a sentence). The "Ontario" -> "ontaireo" replacement is a
-  pronunciation hack that ideally belongs in the TTS engine's lexicon.
-
-- **Unused global `speaker` variable** (tts.go). A package-level `speaker`
-  variable is declared but never used; each `TransmitChannel` has its own
-  `speaker` field.
+No major issues remaining.

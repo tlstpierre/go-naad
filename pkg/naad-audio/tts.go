@@ -3,15 +3,25 @@ package naadaudio
 import (
 	"fmt"
 	"github.com/tlstpierre/go-naad/pkg/naad-xml"
-	"gitlab.com/timstpierre/mc-audio/pkg/piper-tts"
 	"strings"
 )
 
-var (
-	speaker *pipertts.Speaker
-)
+type TTSReplacement struct {
+	From string `yaml:"from"`
+	To   string `yaml:"to"`
+}
 
-func TTSText(info *naadxml.AlertInfo, full, stripcomment bool) string {
+var DefaultTTSReplacements = []TTSReplacement{
+	{"###", ". ."},
+	{".ca", " dot see aay "},
+	{"St.", "saint"},
+	{"Ontario", "ontaireo"},
+	{"km/h", "Kilometers per hour"},
+	{"km", "Kilometers"},
+	{"mm", "milli meters"},
+}
+
+func TTSText(info *naadxml.AlertInfo, full, stripcomment bool, replacements []TTSReplacement) string {
 	var text string
 
 	areas := make([]string, len(info.Area))
@@ -33,13 +43,11 @@ func TTSText(info *naadxml.AlertInfo, full, stripcomment bool) string {
 		}
 		text += description
 	}
-	text = strings.ReplaceAll(text, "###", ". .")
-	//	text = strings.ReplaceAll(text, "/", " or ")
-	text = strings.ReplaceAll(text, ".ca", " dot see aay ")
-	text = strings.ReplaceAll(text, "St.", "saint")
-	text = strings.ReplaceAll(text, "Ontario", "ontaireo")
-	text = strings.ReplaceAll(text, "km/h", "Kilometers per hour")
-	text = strings.ReplaceAll(text, "km", "Kilometers")
-	text = strings.ReplaceAll(text, "mm", "milli meters")
+	if len(replacements) == 0 {
+		replacements = DefaultTTSReplacements
+	}
+	for _, r := range replacements {
+		text = strings.ReplaceAll(text, r.From, r.To)
+	}
 	return text
 }

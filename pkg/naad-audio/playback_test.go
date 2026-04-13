@@ -37,11 +37,12 @@ func TestMain(m *testing.M) {
 	config := ChannelConfig{
 		SpeakContent:  true,
 		StripComments: true,
-		G722:          true,
-		Addresses:     []string{*testAddress},
-		Language:      "en-CA",
+		Multicast: []MulticastDest{
+			{Address: *testAddress, PayloadType: 9},
+		},
+		Language: "en-CA",
 	}
-	tx, err = NewTransmitter(alertChan, config, context.TODO(), wg)
+	tx, err = NewTransmitter(alertChan, config, context.TODO(), wg, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -50,9 +51,6 @@ func TestMain(m *testing.M) {
 		Command:    "/home/tim/piper/piper",
 		VoicePath:  "/home/tim/piper/",
 		Voice:      "en_GB-alan-low",
-	})
-	tx.AddMulticast([]string{
-		*testAddress,
 	})
 
 	exitVal := m.Run()

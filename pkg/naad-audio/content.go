@@ -53,7 +53,7 @@ func (t *TransmitChannel) GetAudio(info *naadxml.AlertInfo) ([]int16, uint16, er
 	}
 
 	if text == "" {
-		text = TTSText(info, t.Config.SpeakContent, t.Config.StripComments)
+		text = TTSText(info, t.Config.SpeakContent, t.Config.StripComments, t.Config.TTSReplacements)
 	}
 	log.Infof("Spoken text will be %s", text)
 	audio, err = t.speaker.Speak(text)

@@ -6,14 +6,12 @@ import (
 	"github.com/tlstpierre/go-naad/pkg/naad-audio"
 	"github.com/tlstpierre/go-naad/pkg/naad-filter"
 	"github.com/tlstpierre/go-naad/pkg/naad-xml"
-	"time"
-	//	"github.com/tlstpierre/mc-audio/pkg/piper-tts"
+	"gitlab.com/timstpierre/mc-audio/pkg/audio"
 	"sync"
+	"time"
 )
 
 var (
-	//announcerWG     *sync.WaitGroup
-	//announcerCancel context.CancelFunc
 	announcers map[string]*Announcer
 )
 
@@ -27,6 +25,19 @@ type Announcer struct {
 func AnnouncerInit(ctx context.Context, wg *sync.WaitGroup) error {
 	announcers = make(map[string]*Announcer, len(configData.Channels))
 
+	// Only initialize the audio backend if any channel needs local audio
+	var audioBackend audio.Backend
+	for _, channelConfig := range configData.Channels {
+		if channelConfig.LocalAudio {
+			var err error
+			audioBackend, err = audio.NewMalgoBackend()
+			if err != nil {
+				log.Errorf("Could not initialize audio backend: %v", err)
+			}
+			break
+		}
+	}
+
 	for channel, channelConfig := range configData.Channels {
 		log.Infof("Starting announcer %s", channel)
 		announcer := &Announcer{
@@ -34,7 +45,7 @@ func AnnouncerInit(ctx context.Context, wg *sync.WaitGroup) error {
 			msgChan: make(chan *naadxml.Alert, 10),
 		}
 		var err error
-		announcer.transmitter, err = naadaudio.NewTransmitter(announcer.msgChan, channelConfig, ctx, wg)
+		announcer.transmitter, err = naadaudio.NewTransmitter(announcer.msgChan, channelConfig, ctx, wg, audioBackend)
 		if err != nil {
 			return err
 		}
@@ -43,7 +54,6 @@ func AnnouncerInit(ctx context.Context, wg *sync.WaitGroup) error {
 			piperConfig.Voice = channelConfig.Voice
 		}
 		announcer.transmitter.AddTTS(piperConfig)
-		announcer.transmitter.AddMulticast(channelConfig.Addresses)
 		announcer.dupSuppressor = naadfilter.NewUpdateSuppressor(2 * time.Hour)
 		announcers[channel] = announcer
 	}

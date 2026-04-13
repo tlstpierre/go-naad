@@ -46,12 +46,12 @@ func (c *Config) Initialize() {
 			Voice:      "en_GB-alan-low",
 		},
 		Channels: map[string]naadaudio.ChannelConfig{
-			"test": naadaudio.ChannelConfig{
+			"test": {
 				SpeakContent:  true,
 				SoremOnly:     false,
 				StripComments: true,
-				Addresses: []string{
-					"[FF05:0:0:0:0:0:1:1010]:5004",
+				Multicast: []naadaudio.MulticastDest{
+					{Address: "[FF05:0:0:0:0:0:1:1010]:5004", PayloadType: 9},
 				},
 				Language: "en-CA",
 			},
