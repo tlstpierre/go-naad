@@ -1,0 +1,129 @@
+# NAAD Receiver -- Example Configuration
+#
+# Copy this file and adjust to your deployment. All fields shown below
+# are optional; the receiver ships with sensible defaults for the
+# Canadian NAAD system (see config.go Initialize()).
+
+# ---------------------------------------------------------------------------
+# NAAD stream sources
+# ---------------------------------------------------------------------------
+# TCP streaming servers and UDP multicast group. The receiver connects to
+# all sources simultaneously for redundancy and deduplicates messages.
+streamservers:
+  - tcp://streaming1.naad-adna.pelmorex.com:8080
+  - tcp://streaming2.naad-adna.pelmorex.com:8080
+  - udp://224.0.10.10:25555
+
+# Archive servers for fetching missed or referenced alerts.
+archiveservers:
+  - capcp1.naad-adna.pelmorex.com
+  - capcp2.naad-adna.pelmorex.com
+
+# ---------------------------------------------------------------------------
+# Geographic filtering
+# ---------------------------------------------------------------------------
+# CAP-CP location codes to filter for local alerts.
+# See https://www.statcan.gc.ca for code lookups.
+capcodes:
+  - "3518020"   # Scugog
+  - "3518029"   # Uxbridge
+
+# Receiver location for geometric area matching (lat/lon in decimal degrees).
+lat: 44.10747
+lon: -78.95514
+
+# ---------------------------------------------------------------------------
+# Web server
+# ---------------------------------------------------------------------------
+# Address and port for the HTTP server (alert UI + JSON API + health endpoint).
+weblisten: ":8081"
+
+# ---------------------------------------------------------------------------
+# Text-to-speech
+# ---------------------------------------------------------------------------
+# Piper TTS engine configuration. Used when alerts lack broadcast audio.
+ttsconfig:
+  samplerate: 16000         # Output sample rate in Hz
+  command: /opt/piper/piper  # Path to the Piper binary
+  path: /opt/piper           # Directory containing voice models
+  voice: en_GB-alan-low      # Default voice model name
+
+# ---------------------------------------------------------------------------
+# Audio output channels
+# ---------------------------------------------------------------------------
+# Each channel independently filters, encodes, and delivers alert audio.
+# Multiple channels can run simultaneously with different settings.
+channels:
+
+  # A G.722 multicast channel for HD audio receivers
+  hd-multicast:
+    language: en-CA
+    speakcontent: true        # Include full description in TTS
+    soremonly: false           # Announce all alerts, not just SOREM
+    stripcomments: true        # Remove ### comments from description
+
+    # Override the global TTS voice for this channel (optional)
+    # voice: en_US-lessac-medium
+
+    # Geographic filter: only announce alerts matching these CAP codes.
+    # Omit to announce all alerts regardless of location.
+    capcodes:
+      - "3518020"
+      - "3518029"
+
+    # RTP multicast destinations. Each specifies an address and payload type.
+    #   Payload type 9  = G.722 (16 kHz, 64 kbps)
+    #   Payload type 0  = mu-law / G.711 (8 kHz)
+    multicast:
+      - address: "[FF05:0:0:0:0:0:1:1010]:5004"
+        payloadtype: 9
+
+    # Local audio output (requires -tags localaudio build).
+    # Disabled by default -- safe for headless servers.
+    localaudio: false
+    localaudiodevice: ""      # OS device name/ID, empty = system default
+    localaudiorate: 48000     # Playback sample rate in Hz
+
+    # Custom TTS pronunciation replacements (optional).
+    # Applied in order. Defaults are used when this list is omitted.
+    # ttsreplacements:
+    #   - from: ".ca"
+    #     to: " dot see aay "
+    #   - from: "St."
+    #     to: "saint"
+    #   - from: "km/h"
+    #     to: "Kilometers per hour"
+
+  # A mu-law channel for legacy paging or telephony systems
+  paging:
+    language: en-CA
+    speakcontent: false
+    soremonly: true            # Only announce alerts with SOREM broadcast text
+    stripcomments: true
+    multicast:
+      - address: "239.1.2.3:5006"
+        payloadtype: 0
+
+  # A channel with both multicast and local audio output
+  local-speaker:
+    language: en-CA
+    speakcontent: true
+    stripcomments: true
+    multicast:
+      - address: "[FF05:0:0:0:0:0:1:1010]:5008"
+        payloadtype: 9
+      - address: "[FF05:0:0:0:0:0:1:1010]:5010"
+        payloadtype: 0
+    localaudio: true
+    localaudiodevice: ""      # Use system default audio device
+    localaudiorate: 48000
+
+  # A French-language channel
+  french:
+    language: fr-CA
+    speakcontent: true
+    stripcomments: true
+    voice: fr_FR-siwis-medium
+    multicast:
+      - address: "[FF05:0:0:0:0:0:1:2010]:5004"
+        payloadtype: 9
