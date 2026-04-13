@@ -62,10 +62,8 @@ func HandleAlertSummary(w http.ResponseWriter, r *http.Request, cache *naadcache
 	}
 	templateData.Summary = summary
 
-	err := alertList.Execute(w, templateData)
-	if err != nil {
+	if err := alertList.Execute(w, templateData); err != nil {
 		log.Errorf("Problem with alert list template - %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
 	}
 }
 
@@ -81,10 +79,8 @@ func HandleAlertCache(w http.ResponseWriter, r *http.Request, cache *naadcache.C
 	}
 	templateData.Summary = summary
 
-	err := alertList.Execute(w, templateData)
-	if err != nil {
+	if err := alertList.Execute(w, templateData); err != nil {
 		log.Errorf("Problem with alert list template - %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
 	}
 }
 
@@ -115,9 +111,7 @@ func HandleAlertDetail(w http.ResponseWriter, r *http.Request, cache *naadcache.
 	templateData.Summary = alert.Summary()
 	log.Infof("Summary is %+v", alert.Summary())
 
-	err := alertDetail.Execute(w, templateData)
-	if err != nil {
+	if err := alertDetail.Execute(w, templateData); err != nil {
 		log.Errorf("Problem with alert detail template - %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
 	}
 }

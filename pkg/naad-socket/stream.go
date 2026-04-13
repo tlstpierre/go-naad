@@ -13,6 +13,10 @@ import (
 	"time"
 )
 
+type TCPReceiverOptions struct {
+	ConnectTimeout time.Duration `yaml:"connecttimeout"`
+}
+
 type TCPReceiver struct {
 	ctx        context.Context
 	cancelFunc context.CancelFunc
@@ -20,16 +24,25 @@ type TCPReceiver struct {
 	host       string
 	handler    func(*naadxml.Alert) error
 	wg         *sync.WaitGroup
+	options    TCPReceiverOptions
 }
 
-func NewTCPReceiver(host string) (*TCPReceiver, error) {
+func NewTCPReceiver(host string, opts ...TCPReceiverOptions) (*TCPReceiver, error) {
 	if host == "" {
 		return nil, fmt.Errorf("Need host and port for TCP connection")
 	}
+	var options TCPReceiverOptions
+	if len(opts) > 0 {
+		options = opts[0]
+	}
+	if options.ConnectTimeout == 0 {
+		options.ConnectTimeout = time.Minute
+	}
 	receiver := &TCPReceiver{
-		host: host,
-		ctx:  context.Background(),
-		wg:   new(sync.WaitGroup),
+		host:    host,
+		ctx:     context.Background(),
+		wg:      new(sync.WaitGroup),
+		options: options,
 	}
 	receiver.ctx, receiver.cancelFunc = context.WithCancel(receiver.ctx)
 
@@ -116,7 +129,7 @@ func (r *TCPReceiver) listen() {
 
 // dial establishes the TCP connection without spawning a new goroutine.
 func (r *TCPReceiver) dial() error {
-	ctx, cancel := context.WithTimeout(r.ctx, time.Minute)
+	ctx, cancel := context.WithTimeout(r.ctx, r.options.ConnectTimeout)
 	defer cancel()
 	var d net.Dialer
 	log.Infof("Connecting to %s", r.host)

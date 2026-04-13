@@ -73,6 +73,4 @@ Manages a set of receivers and provides:
 
 ## Issues and Improvement Opportunities
 
-- **Connection timeout hardcoded** (stream.go). The 1-minute dial timeout
-  is not configurable. In a poor-network environment this may be too short;
-  in a fast-failover scenario it may be too long.
+No major issues remaining.

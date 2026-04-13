@@ -47,31 +47,6 @@ Templates are embedded via `go:embed` from `html/`:
 
 ## Issues and Improvement Opportunities
 
-- **`HandleGetAlert` is empty** (webserver.go:77-78). The `/api/history/{id}`
-  endpoint is registered but the handler has no implementation -- it returns
-  an empty 200 response.
-
-- **No Content-Type headers.** JSON endpoints do not set
-  `Content-Type: application/json`. Browsers and API clients may
-  misinterpret the response.
-
-- **WriteHeader after body write.** In error paths (webserver.go:93,
-  ui.go:68, etc.), `w.WriteHeader(http.StatusInternalServerError)` is called
-  after `encoder.Encode()` or `template.Execute()` has already started
-  writing to the response. At that point the status code is already 200 and
-  the `WriteHeader` call is a no-op (Go's http package logs a warning).
-
 - **No static asset serving.** The HTML templates are bare HTML with no CSS
   or JavaScript. Adding a minimal stylesheet would improve readability
   significantly, especially for the color-coded alert tables.
-
-- **No index/root handler.** There is no handler for `/` -- users must know
-  to navigate to `/alertsummary` or `/alertcache`.
-
-- **Template nil-safety.** The alert detail template accesses
-  `.History.Current.Info` and `.History.UpdatedBy` directly. If an alert
-  exists in the cache but has no history entry (e.g., it was an update-only
-  message), accessing `.History` fields would panic with a nil pointer.
-
-- **Shutdown uses `context.TODO()`** (webserver.go:74). A proper shutdown
-  context with a timeout would be more robust.

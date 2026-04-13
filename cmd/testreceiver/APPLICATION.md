@@ -83,22 +83,6 @@ matching and warns when an alert is local.
 
 ## Issues and Improvement Opportunities
 
-- **SIGKILL cannot be caught.** The signal handler lists `syscall.SIGKILL`
-  (main.go), but SIGKILL cannot be intercepted by any process. Go will
-  accept it in the Notify call without error, but it will never be delivered
-  to the channel.
-
-- **`signal.Notify(sigs)` catches all signals** (main.go). Without an
-  explicit signal list, every signal (including SIGCHLD, SIGWINCH, etc.)
-  is delivered. This is noisy but harmless; being explicit about which
-  signals to catch would be cleaner.
-
-- **AnnouncerInit error return is ignored** (main.go). The function
-  returns an error but it is not checked.
-
-- **webServer error not checked** (main.go). `NewServer` returns an error
-  that is not checked.
-
 - **No config file validation.** If the YAML has unexpected types or missing
   required fields, the decoder will silently use zero values. A validation
   step after loading would catch misconfiguration early.

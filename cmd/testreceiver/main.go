@@ -78,7 +78,12 @@ func main() {
 	initFilter()
 	var webServer *naadweb.Server
 	webServer, err = naadweb.NewServer(configData.WebListen, NaadCache)
-	AnnouncerInit(ctx, wg)
+	if err != nil {
+		log.Fatalf("Could not start web server: %v", err)
+	}
+	if err = AnnouncerInit(ctx, wg); err != nil {
+		log.Fatalf("Could not initialize announcer: %v", err)
+	}
 	_ = NewProcessor(rxchan, infochan, ctx)
 	err = rxg.Start()
 	if err != nil {
@@ -92,20 +97,14 @@ func main() {
 		os.Exit(0)
 	}
 
-	// setup signal catching
 	sigs := make(chan os.Signal, 1)
-	// catch all signals since not explicitly listing
-	signal.Notify(sigs)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	cacheCleaner := time.NewTicker(1 * time.Hour)
 	fetchCleaner := time.NewTicker(1 * time.Minute)
 	for {
 		select {
-		case s := <-sigs:
-			switch s {
-			case syscall.SIGQUIT, syscall.SIGKILL, syscall.SIGTERM, syscall.SIGINT:
-				quitFunc()
-			case syscall.SIGHUP:
-			}
+		case <-sigs:
+			quitFunc()
 		case <-cacheCleaner.C:
 			NaadCache.Clean()
 		case <-fetchCleaner.C:
