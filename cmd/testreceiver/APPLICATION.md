@@ -83,10 +83,4 @@ matching and warns when an alert is local.
 
 ## Issues and Improvement Opportunities
 
-- **No config file validation.** If the YAML has unexpected types or missing
-  required fields, the decoder will silently use zero values. A validation
-  step after loading would catch misconfiguration early.
-
-- **No health/liveness endpoint.** For deployment in a monitored environment,
-  an endpoint that reports receiver connection status, last heartbeat time,
-  and cache size would aid operations.
+No major issues remaining.

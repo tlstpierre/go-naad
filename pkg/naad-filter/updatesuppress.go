@@ -33,7 +33,15 @@ func updateSuppressKey(msg *naadxml.Alert) DedupKey {
 	if len(msg.Info) < 1 {
 		return key
 	}
+	// Pick a deterministic info block regardless of arrival order.
+	// Use the first block sorted by language so the key is stable
+	// even if info blocks arrive in a different order.
 	info := msg.Info[0]
+	for _, candidate := range msg.Info {
+		if candidate != nil && (info == nil || candidate.Language < info.Language) {
+			info = candidate
+		}
+	}
 	if info == nil {
 		return key
 	}
@@ -47,49 +55,37 @@ func updateSuppressKey(msg *naadxml.Alert) DedupKey {
 }
 
 func (d *UpdateSuppressor) Insert(msg *naadxml.Alert) {
+	key := updateSuppressKey(msg)
+	if key.Identifier == "" {
+		return
+	}
 	d.Lock()
 	defer d.Unlock()
-	if len(msg.Info) < 1 {
-		return
-	}
-	info := msg.Info[0]
-	if info == nil {
-		return
-	}
-	key := updateSuppressKey(msg)
 	d.messageList[key] = msg.Sent
 }
 
 func (d *UpdateSuppressor) Delete(msg *naadxml.Alert) {
+	key := updateSuppressKey(msg)
+	if key.Identifier == "" {
+		return
+	}
 	d.Lock()
 	defer d.Unlock()
-	if len(msg.Info) < 1 {
-		return
-	}
-	info := msg.Info[0]
-	if info == nil {
-		return
-	}
-	key := updateSuppressKey(msg)
 	delete(d.messageList, key)
 }
 
 func (d *UpdateSuppressor) IsDuplicate(msg *naadxml.Alert) bool {
-	d.Lock()
-	defer d.Unlock()
-	if len(msg.Info) < 1 {
-		return false
-	}
-	info := msg.Info[0]
-	if info == nil {
-		return false
-	}
+	d.RLock()
+	defer d.RUnlock()
 	key := updateSuppressKey(msg)
-	sent, found := d.messageList[key]
-	if time.Since(sent) > d.repeat {
+	if key.Identifier == "" {
 		return false
 	}
-	return found
+	sent, found := d.messageList[key]
+	if !found || time.Since(sent) > d.repeat {
+		return false
+	}
+	return true
 }
 
 func (d *UpdateSuppressor) Clean() {

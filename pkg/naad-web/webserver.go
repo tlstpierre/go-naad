@@ -42,8 +42,13 @@ func NewServer(listen string, cache *naadcache.Cache) (*Server, error) {
 		HandleAlertDetail(w, r, cache)
 	}
 
+	handleHealth := func(w http.ResponseWriter, r *http.Request) {
+		HandleHealth(w, r, cache)
+	}
+
 	r := mux.NewRouter()
 	r.HandleFunc("/", HandleIndex).Methods("GET")
+	r.HandleFunc("/health", handleHealth).Methods("GET")
 	r.HandleFunc("/api/history", handleGetAll).Methods("GET")
 	r.HandleFunc("/api/history/{id}", handleGetAlert).Methods("GET")
 	r.HandleFunc("/api/summary", handleGetSummary).Methods("GET")
@@ -75,6 +80,12 @@ func (s *Server) Shutdown() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	s.server.Shutdown(ctx)
+}
+
+func HandleHealth(w http.ResponseWriter, r *http.Request, cache *naadcache.Cache) {
+	w.Header().Set("Content-Type", "application/json")
+	stats := cache.Stats()
+	json.NewEncoder(w).Encode(stats)
 }
 
 func HandleIndex(w http.ResponseWriter, r *http.Request) {

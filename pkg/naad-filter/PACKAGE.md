@@ -66,18 +66,6 @@ Methods:
 ## Issues and Improvement Opportunities
 
 
-- **UpdateSuppressor only examines the first Info block** (updatesuppress.go:
-  32-46). Multi-language alerts have multiple info blocks; only `msg.Info[0]`
-  is used for the dedup key. If alerts arrive with languages in different
-  order, the key could differ for the same logical alert.
-
 - **DeDuplicate.CleanOld uses a hardcoded 24-hour window for references**
-  (deduplicate.go:61-62) regardless of the `age` parameter passed in for
-  messages. This is intentional but could be clearer if made a separate
-  parameter.
-
-- **displayInfo in the application layer** (cmd/testreceiver/display.go)
-  only checks areas that match configured CAP codes for location matching,
-  meaning a lat/lon match in an area with a different CAP code is missed.
-  This is an application-level issue but worth noting here since it relates
-  to how the filter functions are called.
+  (deduplicate.go) regardless of the `age` parameter passed in for messages.
+  This is intentional but could be clearer if made a separate parameter.

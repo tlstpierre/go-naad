@@ -26,17 +26,16 @@ func displayInfo(alert *naadxml.AlertInfo) {
 	var matchesCAP bool
 	var matchesLocation bool
 	var areaDescription string
-	for _, code := range configData.CAPCodes {
-		for _, area := range alert.Area {
+	for _, area := range alert.Area {
+		for _, code := range configData.CAPCodes {
 			if naadfilter.IsCAPArea(area, code) {
 				matchesCAP = true
 				areaDescription = area.Description
 			}
-
-			if naadfilter.IsPlaceInArea(area, thisPlace) {
-				matchesLocation = true
-				areaDescription = area.Description
-			}
+		}
+		if naadfilter.IsPlaceInArea(area, thisPlace) {
+			matchesLocation = true
+			areaDescription = area.Description
 		}
 	}
 

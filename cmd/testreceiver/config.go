@@ -93,6 +93,19 @@ func (c *Config) SaveFile(filename string) error {
 	return nil
 }
 
+func (c *Config) Validate() error {
+	if len(c.StreamServers) == 0 {
+		return fmt.Errorf("no stream servers configured")
+	}
+	if len(c.ArchiveServers) == 0 {
+		return fmt.Errorf("no archive servers configured")
+	}
+	if c.WebListen == "" {
+		return fmt.Errorf("web listen address not configured")
+	}
+	return nil
+}
+
 func (c *Config) OutputDefault() {
 	output, err := yaml.Marshal(c)
 	if err != nil {

@@ -113,6 +113,22 @@ func (c *Cache) Add(alert *naadxml.Alert) {
 	}
 }
 
+type CacheStats struct {
+	Alerts   int    `json:"alerts"`
+	History  int    `json:"history"`
+	Handled  uint64 `json:"handled"`
+}
+
+func (c *Cache) Stats() CacheStats {
+	c.RLock()
+	defer c.RUnlock()
+	return CacheStats{
+		Alerts:  len(c.alerts),
+		History: len(c.history),
+		Handled: c.handled,
+	}
+}
+
 func (c *Cache) Get(id string) (*naadxml.Alert, *AlertHistory) {
 	c.RLock()
 	defer c.RUnlock()

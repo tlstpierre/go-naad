@@ -44,6 +44,10 @@ func main() {
 		log.Infof("Using default config")
 		configData.OutputDefault()
 	}
+	if err = configData.Validate(); err != nil {
+		log.Fatalf("Invalid configuration: %v", err)
+	}
+
 	if *LogFile != "" {
 		var lf io.Writer
 		lf, err = os.OpenFile(*LogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0664)
