@@ -96,7 +96,7 @@ func TestTextEndToEnd(t *testing.T) {
 			}
 			alert.ProcessAlert() // populates the SOREM layer, as the receiver does
 			info := alert.Info[0]
-			tx.sendText(info)
+			tx.sendText(naadxml.AlertMessage, info)
 			want := t140.BOM + t140.BEL + "This is a test" + t140.LineSeparator
 
 			dec := t140.NewDecoder()
@@ -118,5 +118,24 @@ func TestTextEndToEnd(t *testing.T) {
 				t.Errorf("\n got %q\nwant %q", got.String(), want)
 			}
 		})
+	}
+}
+
+// A stand-down of a Severe alert doesn't ring the bell.
+func TestAlertTextStandDownNoBell(t *testing.T) {
+	ended := &naadxml.AlertInfo{
+		Headline:   "tornado warning ended",
+		Severity:   naadxml.Severe,
+		Parameters: []naadxml.Parameter{{Name: "layer:EC-MSC-SMC:1.1:Alert_Location_Status", Value: "ended"}},
+	}
+	allClear := &naadxml.AlertInfo{Headline: "all clear", Severity: naadxml.Extreme, Response: []naadxml.ResponseType{"AllClear"}}
+	for _, info := range []*naadxml.AlertInfo{ended, allClear} {
+		if got := AlertText(info, true); strings.HasPrefix(got, t140.BEL) {
+			t.Errorf("%q rings the bell", got)
+		}
+	}
+	active := &naadxml.AlertInfo{Headline: "tornado warning", Severity: naadxml.Severe}
+	if got := AlertText(active, true); !strings.HasPrefix(got, t140.BEL) {
+		t.Errorf("active Severe alert %q should ring the bell", got)
 	}
 }

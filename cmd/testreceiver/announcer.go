@@ -55,39 +55,95 @@ func AnnouncerInit(ctx context.Context, wg *sync.WaitGroup) error {
 	return nil
 }
 
-// matchChannel reports whether an alert should be announced on a channel and
-// why. A channel with neither CAP codes nor geofences takes every alert.
-func matchChannel(config naadaudio.ChannelConfig, msg *naadxml.Alert) (bool, string) {
+// referenceLookup finds a message that an Update or Cancel refers to,
+// from the cache or the archive; nil if it can't be had.
+type referenceLookup func(naadxml.Reference) *naadxml.Alert
+
+// matchChannel decides whether a message goes to a channel, why, and which
+// of its info blocks the channel should announce.
+//
+// A channel with neither CAP codes nor geofences takes every message whole.
+// Otherwise a message matches on its own areas in effect (stand-down blocks
+// and ended or cancelled threat areas never start an alert), and the
+// channel announces its in-effect blocks. Failing that, an Update or Cancel
+// matches if any message it refers to matched on its own areas: that is a
+// stand-down or amendment for an alert the channel announced (or would
+// have, had it been running), so the channel gets it whatever its own
+// geometry, and announces its stand-down blocks if it has any.
+func matchChannel(config naadaudio.ChannelConfig, msg *naadxml.Alert, lookup referenceLookup) (bool, string, []*naadxml.AlertInfo) {
 	if len(config.CAPCodes) == 0 && len(config.GeoFences) == 0 {
-		return true, "no location filter"
+		return true, "no location filter", msg.Info
 	}
+	if reason := matchAreas(config, msg); reason != "" {
+		var active []*naadxml.AlertInfo
+		for _, info := range msg.Info {
+			if info.InEffect() {
+				active = append(active, info)
+			}
+		}
+		return true, reason, active
+	}
+	if !msg.RefersBack() || lookup == nil {
+		return false, "", nil
+	}
+	for _, ref := range msg.References.References {
+		original := lookup(ref)
+		if original == nil {
+			continue
+		}
+		if reason := matchAreas(config, original); reason != "" {
+			var standDown []*naadxml.AlertInfo
+			for _, info := range msg.Info {
+				if !info.InEffect() {
+					standDown = append(standDown, info)
+				}
+			}
+			if len(standDown) == 0 {
+				standDown = msg.Info
+			}
+			return true, "reference to " + ref.Identifier + ", which matched on " + reason, standDown
+		}
+	}
+	return false, "", nil
+}
+
+// matchAreas says how a message's areas in effect match the channel's CAP
+// codes or geofences, or "" if they don't.
+func matchAreas(config naadaudio.ChannelConfig, msg *naadxml.Alert) string {
 	for _, code := range config.CAPCodes {
 		if naadfilter.AlertIsCAPArea(msg, code) {
-			return true, "CAP code " + code
+			return "CAP code " + code
 		}
 	}
 	for _, fence := range config.GeoFences {
 		if naadfilter.AlertInGeoFence(msg, fence) {
-			return true, "geofence " + fence.String()
+			return "geofence " + fence.String()
 		}
 	}
-	return false, ""
+	return ""
 }
 
-func AnnounceMessage(msg *naadxml.Alert) {
+// AnnounceMessage sends a message to every channel it matches, each
+// getting a copy holding only the info blocks that concern it.
+func AnnounceMessage(msg *naadxml.Alert, lookup referenceLookup) {
 	for channel, announcer := range announcers {
-		matched, reason := matchChannel(announcer.Config, msg)
+		matched, reason, infos := matchChannel(announcer.Config, msg, lookup)
 		if !matched {
 			continue
 		}
 		log.Infof("Alert %s for channel %s matched on %s", msg.Identifier, channel, reason)
-		if announcer.dupSuppressor.IsDuplicate(msg) {
+		if len(infos) == 0 {
+			continue
+		}
+		channelMsg := *msg
+		channelMsg.Info = infos
+		if announcer.dupSuppressor.IsDuplicate(&channelMsg) {
 			log.Infof("Skipping message %s to channel %s because it hasn't changed enough", msg.Identifier, channel)
 			continue
 		}
-		announcer.dupSuppressor.Insert(msg)
+		announcer.dupSuppressor.Insert(&channelMsg)
 		log.Infof("Announcing message %s to channel %s", msg.Identifier, channel)
-		announcer.msgChan <- msg
+		announcer.msgChan <- &channelMsg
 		announcer.dupSuppressor.Clean()
 	}
 }

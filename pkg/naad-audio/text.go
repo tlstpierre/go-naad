@@ -66,11 +66,16 @@ func (o *textOutput) run(ctx context.Context, wg *sync.WaitGroup) {
 	}
 }
 
-func (t *TransmitChannel) sendText(info *naadxml.AlertInfo) {
+// sendText queues the block's text for every text destination. A Cancel
+// is a stand-down like an ended block, so it never rings the bell.
+func (t *TransmitChannel) sendText(msgType naadxml.MessageType, info *naadxml.AlertInfo) {
 	if len(t.textOutputs) == 0 {
 		return
 	}
 	text := AlertText(info, t.Config.StripComments)
+	if msgType == naadxml.AlertCancel {
+		text = strings.TrimPrefix(text, t140.BEL)
+	}
 	if text == "" {
 		return
 	}
@@ -90,7 +95,8 @@ const maxDisplayAreas = 5
 // AlertText is the display text sent to real-time text endpoints: the SOREM
 // broadcast text if present, otherwise the headline, the affected areas and
 // the description, cleaned up for display (see DisplayText). It starts with
-// BEL for Severe and Extreme alerts and ends with a T.140 line separator.
+// BEL for Severe and Extreme alerts in effect (not stand-downs) and ends
+// with a T.140 line separator.
 func AlertText(info *naadxml.AlertInfo, stripComments bool) string {
 	var text string
 	if info.SoremLayer != nil {
@@ -107,7 +113,8 @@ func AlertText(info *naadxml.AlertInfo, stripComments bool) string {
 		return ""
 	}
 	text = t140.NormalizeNewlines(text) + t140.LineSeparator
-	if info.Severity == naadxml.Extreme || info.Severity == naadxml.Severe {
+	// The bell is for an alert taking effect, not for its stand-down.
+	if (info.Severity == naadxml.Extreme || info.Severity == naadxml.Severe) && info.InEffect() {
 		text = t140.BEL + text
 	}
 	return text

@@ -30,6 +30,15 @@ config type (`geofences:` in YAML). `AlertInGeoFence()` matches when any alert
 polygon or circle overlaps the fence: centre inside the polygon, a vertex
 inside the fence, or an edge passing within the radius.
 
+**Only areas in effect match.** `AlertInGeoFence`, `IsPlaceInAlert` and
+`AlertIsCAPArea` skip stand-down blocks (an ECCC `Alert_Location_Status`
+other than `active`, or any issuer's `responseType` `AllClear`) and ECCC's
+drawn threat areas whose `DLC` geocode is `ended` or `cancelled` (see
+`naadxml.AlertInfo.InEffect` and `AlertArea.InEffect`). Those areas stay in
+the parsed alert, for maps, but never start an alert. A stand-down reaches
+the channels that had the alert through its `<references>` instead (see
+`matchChannel` in `cmd/testreceiver`).
+
 ### Place Types (place.go)
 
 The `Place` interface abstracts different geographic shapes:

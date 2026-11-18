@@ -86,9 +86,20 @@ func IsPlaceInArea(area naadxml.AlertArea, place Place) (matched bool) {
 	return false
 }
 
+// IsPlaceInAlert reports whether place overlaps an area the alert is in
+// effect for. Stand-down blocks and ended or cancelled threat areas are
+// skipped (see naadxml.AlertInfo.InEffect and AlertArea.InEffect): they
+// say where the alert no longer applies, so they never start an alert. A
+// stand-down reaches those who heard the original through its references.
 func IsPlaceInAlert(alert *naadxml.Alert, place Place) bool {
 	for _, info := range alert.Info {
+		if !info.InEffect() {
+			continue
+		}
 		for _, area := range info.Area {
+			if !area.InEffect() {
+				continue
+			}
 			if IsPlaceInArea(area, place) {
 				return true
 			}

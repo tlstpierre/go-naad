@@ -197,7 +197,7 @@ func (t *TransmitChannel) handleMessages() {
 					}
 					// Text goes out immediately and independently of
 					// audio, so displays update even if TTS fails.
-					t.sendText(alertInfo)
+					t.sendText(msg.MsgType, alertInfo)
 
 					audio, samplerate, err := t.GetAudio(alertInfo)
 					if err != nil {

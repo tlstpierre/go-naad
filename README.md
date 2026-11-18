@@ -81,9 +81,14 @@ Key configuration areas:
 - **TTS config**: Piper TTS engine path, voice, and sample rate.
 - **Channels**: Named audio output channels, each with language, location
   filters (CAP codes and/or `geofences` of lat/lon/radiuskm, matched as OR
-  against alert polygons and circles), and multicast destinations with a
+  against the alert's areas in effect), and multicast destinations with a
   `codec` of `g722`, `pcmu` or `pcma` for audio, or `t140` / `t140red` for
   RFC 4103 real-time text of the alert (see `config-example.yaml`).
+  An Update or Cancel also goes to a channel if any message it references
+  matched there (fetched from the archive if not cached), so a stand-down
+  reaches everyone who had the alert even when its own areas have ended.
+  Each channel announces only the blocks that concern it: the areas in
+  effect, or for a stand-down its ended/all-clear blocks.
 
 ### Running
 

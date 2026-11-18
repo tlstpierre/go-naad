@@ -37,7 +37,11 @@ func (r *References) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error 
 		//		log.Infof("XML start element is %+v and token is %+v", start, t)
 		switch t.(type) {
 		case xml.CharData:
-			items := strings.Split(string(t.(xml.CharData)), " ")
+			// Space separated, possibly across lines.
+			items := strings.Fields(string(t.(xml.CharData)))
+			if len(items) == 0 {
+				continue
+			}
 			r.References = make([]Reference, len(items))
 			for i, item := range items {
 				elements := strings.Split(item, ",")

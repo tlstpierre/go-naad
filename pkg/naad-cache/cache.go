@@ -2,6 +2,7 @@ package naadcache
 
 import (
 	"context"
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/tlstpierre/go-naad/pkg/naad-xml"
 	"net/http"
@@ -60,28 +61,25 @@ func (c *Cache) SetFetchTracker(tracker *naadxml.FetchTracker) {
 	c.fetchTracker = tracker
 }
 
+// Add stores an alert. For an Update or Cancel, it records the change
+// against the original in the history and fetches from the archive any
+// referenced message it doesn't have (ECCC lists the whole chain, so
+// intermediate updates are referenced too; one already cached isn't
+// fetched again).
 func (c *Cache) Add(alert *naadxml.Alert) {
-	// First pass under lock: store the alert and identify which references
-	// need to be fetched from archive servers.
-	type missingRef struct {
-		reference naadxml.Reference
-		originalID string
-	}
-	var toFetch []missingRef
+	var toFetch []naadxml.Reference
 
 	c.Lock()
 	c.handled++
 	c.alerts[alert.Identifier] = alert
 
-	if alert.IsUpdate() {
+	if alert.RefersBack() {
 		for _, reference := range alert.References.References {
-			originalID := reference.Identifier
-			log.Infof("Updating original alert %s with %s", originalID, alert.Identifier)
-			history, hasOriginal := c.history[originalID]
-			if !hasOriginal {
-				toFetch = append(toFetch, missingRef{reference: reference, originalID: originalID})
-			} else {
+			if history, ok := c.history[reference.Identifier]; ok {
+				log.Infof("Updating original alert %s with %s", reference.Identifier, alert.Identifier)
 				history.ApplyUpdate(alert)
+			} else if _, ok := c.alerts[reference.Identifier]; !ok {
+				toFetch = append(toFetch, reference)
 			}
 		}
 	} else {
@@ -91,26 +89,51 @@ func (c *Cache) Add(alert *naadxml.Alert) {
 	}
 	c.Unlock()
 
-	// Fetch missing originals outside the lock so we don't block readers.
-	// The FetchTracker deduplicates concurrent requests for the same identifier.
-	for _, missing := range toFetch {
-		refAlert, err := c.fetchTracker.Fetch(context.Background(), missing.reference)
+	// Fetch outside the lock so we don't block readers. The FetchTracker
+	// deduplicates concurrent requests for the same identifier.
+	for _, reference := range toFetch {
+		refAlert, err := c.fetch(context.Background(), reference)
 		if err != nil {
-			log.Errorf("Problem fetching previous missed message %s - %v", missing.originalID, err)
+			log.Errorf("Problem fetching previous missed message %s - %v", reference.Identifier, err)
 			continue
 		}
-		log.Infof("Fetched %s from archive", refAlert.Identifier)
 		c.Lock()
-		c.alerts[refAlert.Identifier] = refAlert
-		if !refAlert.IsUpdate() {
+		if !refAlert.RefersBack() {
 			refHistory := newHistory(refAlert, refAlert.Identifier)
+			refHistory.IsOriginal = true
 			refHistory.ApplyUpdate(alert)
 			c.history[refAlert.Identifier] = refHistory
-		} else {
-			log.Warnf("Referenced alert %s is also an update??", refAlert.Identifier)
 		}
 		c.Unlock()
 	}
+}
+
+// Lookup returns a referenced message, from the cache or, failing that,
+// from the archive (and then caches it).
+func (c *Cache) Lookup(ctx context.Context, reference naadxml.Reference) (*naadxml.Alert, error) {
+	c.RLock()
+	alert, ok := c.alerts[reference.Identifier]
+	c.RUnlock()
+	if ok {
+		return alert, nil
+	}
+	return c.fetch(ctx, reference)
+}
+
+// fetch gets a message from the archive and caches it.
+func (c *Cache) fetch(ctx context.Context, reference naadxml.Reference) (*naadxml.Alert, error) {
+	if c.fetchTracker == nil {
+		return nil, fmt.Errorf("no archive to fetch %s from", reference.Identifier)
+	}
+	alert, err := c.fetchTracker.Fetch(ctx, reference)
+	if err != nil {
+		return nil, err
+	}
+	log.Infof("Fetched %s from archive", alert.Identifier)
+	c.Lock()
+	c.alerts[alert.Identifier] = alert
+	c.Unlock()
+	return alert, nil
 }
 
 type CacheStats struct {

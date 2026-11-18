@@ -5,6 +5,7 @@ import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/tlstpierre/go-naad/pkg/naad-xml"
+	"time"
 )
 
 type Processor struct {
@@ -45,7 +46,16 @@ func (p *Processor) run() {
 			if err != nil {
 				log.Warnf("Problem processing alert - %v", err)
 			}
-			AnnounceMessage(alert)
+			AnnounceMessage(alert, func(ref naadxml.Reference) *naadxml.Alert {
+				ctx, cancel := context.WithTimeout(p.ctx, 45*time.Second)
+				defer cancel()
+				original, err := NaadCache.Lookup(ctx, ref)
+				if err != nil {
+					log.Warnf("Could not get %s, referenced by %s: %v", ref.Identifier, alert.Identifier, err)
+					return nil
+				}
+				return original
+			})
 			for _, info := range alert.Info {
 				if info.Language != "en-CA" {
 					continue

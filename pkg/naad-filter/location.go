@@ -19,9 +19,18 @@ func IsCAPArea(area naadxml.AlertArea, codematch string) bool {
 	return false
 }
 
+// AlertIsCAPArea reports whether the alert is in effect for a location
+// whose CAP-CP code starts with code. Like IsPlaceInAlert, it skips
+// stand-down blocks and ended or cancelled threat areas.
 func AlertIsCAPArea(alert *naadxml.Alert, code string) bool {
 	for _, info := range alert.Info {
+		if !info.InEffect() {
+			continue
+		}
 		for _, area := range info.Area {
+			if !area.InEffect() {
+				continue
+			}
 			if IsCAPArea(area, code) {
 				return true
 			}
