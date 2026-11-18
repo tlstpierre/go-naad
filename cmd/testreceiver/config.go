@@ -51,7 +51,7 @@ func (c *Config) Initialize() {
 				SoremOnly:     false,
 				StripComments: true,
 				Multicast: []naadaudio.MulticastDest{
-					{Address: "[FF05:0:0:0:0:0:1:1010]:5004", PayloadType: 9},
+					{Address: "[FF05:0:0:0:0:0:1:1010]:5004", Codec: "g722"},
 				},
 				Language: "en-CA",
 			},
@@ -102,6 +102,11 @@ func (c *Config) Validate() error {
 	}
 	if c.WebListen == "" {
 		return fmt.Errorf("web listen address not configured")
+	}
+	for name, channel := range c.Channels {
+		if err := channel.Validate(); err != nil {
+			return fmt.Errorf("channel %s: %v", name, err)
+		}
 	}
 	return nil
 }

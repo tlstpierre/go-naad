@@ -21,6 +21,7 @@ var (
 	LogLevel   = flag.String("loglevel", "info", "Log Level")
 	LogFile    = flag.String("logfile", "", "Path to log file")
 	ConfigFile = flag.String("config", "", "Config file path")
+	CheckOnly  = flag.Bool("check", false, "Validate the config file and exit")
 	configData *Config
 	wg         *sync.WaitGroup
 	NaadCache  *naadcache.Cache
@@ -46,6 +47,13 @@ func main() {
 	}
 	if err = configData.Validate(); err != nil {
 		log.Fatalf("Invalid configuration: %v", err)
+	}
+	if *CheckOnly {
+		for name, ch := range configData.Channels {
+			log.Infof("Channel %s: capcodes=%v geofences=%v multicast=%+v", name, ch.CAPCodes, ch.GeoFences, ch.Multicast)
+		}
+		log.Info("Configuration OK")
+		os.Exit(0)
 	}
 
 	if *LogFile != "" {

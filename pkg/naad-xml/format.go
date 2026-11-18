@@ -142,7 +142,7 @@ type Parameter struct {
 
 type AlertArea struct {
 	Description string      `xml:"areaDesc"`
-	Polygon     *GeoPolygon `xml:"polygon"`
-	Circle      *GeoCircle  `xml:"circle"`
+	Polygons    []GeoPolygon `xml:"polygon"`
+	Circles     []GeoCircle  `xml:"circle"`
 	Geocode     []Parameter `xml:"geocode"`
 }

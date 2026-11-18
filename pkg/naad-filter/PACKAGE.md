@@ -16,9 +16,19 @@ broader regions. `IsCAPArea()` checks a single area, `AlertIsCAPArea()` checks
 all areas across all info blocks.
 
 **Geometric matching** (area.go, place.go): Uses the `golang/geo` s2 library
-for spherical geometry. Alert areas can contain polygons and/or circles;
-the `IsPlaceInArea()` function tests whether a `Place` (point, boundary, or
-circle) falls within the alert's geographic area.
+for spherical geometry. Alert areas can contain any number of polygons and
+circles; the `IsPlaceInArea()` function tests whether a `Place` (point,
+boundary, or circle) overlaps any of them.
+
+CAP polygons have no defined winding order. `LoopFromPolygon()` drops the
+repeated closing vertex and normalizes the loop, so clockwise polygons are not
+treated as "everywhere except this area". Degenerate or malformed geometry is
+skipped (logged), never fatal, and a panic in s2 is recovered.
+
+**Geofences** (geofence.go): `GeoFence{Lat, Lon, RadiusKm}` is the per-channel
+config type (`geofences:` in YAML). `AlertInGeoFence()` matches when any alert
+polygon or circle overlaps the fence: centre inside the polygon, a vertex
+inside the fence, or an edge passing within the radius.
 
 ### Place Types (place.go)
 

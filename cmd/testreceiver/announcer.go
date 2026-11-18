@@ -55,25 +55,32 @@ func AnnouncerInit(ctx context.Context, wg *sync.WaitGroup) error {
 	return nil
 }
 
+// matchChannel reports whether an alert should be announced on a channel and
+// why. A channel with neither CAP codes nor geofences takes every alert.
+func matchChannel(config naadaudio.ChannelConfig, msg *naadxml.Alert) (bool, string) {
+	if len(config.CAPCodes) == 0 && len(config.GeoFences) == 0 {
+		return true, "no location filter"
+	}
+	for _, code := range config.CAPCodes {
+		if naadfilter.AlertIsCAPArea(msg, code) {
+			return true, "CAP code " + code
+		}
+	}
+	for _, fence := range config.GeoFences {
+		if naadfilter.AlertInGeoFence(msg, fence) {
+			return true, "geofence " + fence.String()
+		}
+	}
+	return false, ""
+}
+
 func AnnounceMessage(msg *naadxml.Alert) {
 	for channel, announcer := range announcers {
-
-		var matched bool
-		if len(announcer.Config.CAPCodes) > 0 {
-			for _, code := range announcer.Config.CAPCodes {
-				if naadfilter.AlertIsCAPArea(msg, code) {
-					matched = true
-					log.Infof("Alert for channel %s matched on CAP code %s", channel, code)
-					break
-				}
-			}
-		} else {
-			log.Infof("Announcing all CAP codes to %s", channel)
-			matched = true
-		}
+		matched, reason := matchChannel(announcer.Config, msg)
 		if !matched {
 			continue
 		}
+		log.Infof("Alert %s for channel %s matched on %s", msg.Identifier, channel, reason)
 		if announcer.dupSuppressor.IsDuplicate(msg) {
 			log.Infof("Skipping message %s to channel %s because it hasn't changed enough", msg.Identifier, channel)
 			continue

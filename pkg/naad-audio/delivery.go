@@ -3,11 +3,10 @@ package naadaudio
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
-	"github.com/shenjinti/go722"
+	"fmt"
 	log "github.com/sirupsen/logrus"
+	"github.com/tlstpierre/go-naad/pkg/naad-filter"
 	"github.com/tlstpierre/go-naad/pkg/naad-xml"
-	"gitlab.com/timstpierre/mc-audio/pkg/g711"
 	"gitlab.com/timstpierre/mc-audio/pkg/mc-transmit"
 	"gitlab.com/timstpierre/mc-audio/pkg/piper-tts"
 	"gitlab.com/timstpierre/mc-audio/pkg/resample"
@@ -17,22 +16,57 @@ import (
 )
 
 type MulticastDest struct {
-	Address     string `yaml:"address"`
-	PayloadType uint8  `yaml:"payloadtype"`
+	Address string `yaml:"address"`
+	// Codec is one of g722, pcmu (G.711 mu-law) or pcma (G.711 A-law).
+	Codec string `yaml:"codec,omitempty"`
+	// PayloadType is the legacy way to pick a codec by static RTP payload
+	// type (0, 8 or 9). Deprecated: use Codec.
+	PayloadType *uint8 `yaml:"payloadtype,omitempty"`
+}
+
+var codecPayloadTypes = map[string]uint8{
+	"pcmu": 0, "g711u": 0, "ulaw": 0, "mulaw": 0,
+	"pcma": 8, "g711a": 8, "alaw": 8,
+	"g722": 9,
+}
+
+// ResolvePT returns the static RTP payload type for this destination.
+func (d MulticastDest) ResolvePT() (uint8, error) {
+	if d.Codec != "" {
+		pt, ok := codecPayloadTypes[strings.ToLower(d.Codec)]
+		if !ok {
+			return 0, fmt.Errorf("multicast %s: unknown codec %q (use g722, pcmu or pcma)", d.Address, d.Codec)
+		}
+		if d.PayloadType != nil && *d.PayloadType != pt {
+			return 0, fmt.Errorf("multicast %s: codec %q conflicts with payloadtype %d", d.Address, d.Codec, *d.PayloadType)
+		}
+		return pt, nil
+	}
+	if d.PayloadType != nil {
+		pt := *d.PayloadType
+		if rtptransmit.RatesForPT(pt).AudioRate == 0 {
+			return 0, fmt.Errorf("multicast %s: unsupported payloadtype %d", d.Address, pt)
+		}
+		return pt, nil
+	}
+	return 0, fmt.Errorf("multicast %s: no codec specified", d.Address)
 }
 
 type ChannelConfig struct {
-	SpeakContent     bool             `yaml:"speakcontent"`
-	SoremOnly        bool             `yaml:"soremonly"`
-	StripComments    bool             `yaml:"stripcomments"`
-	Language         string           `yaml:"language"`
-	Voice            string           `yaml:"voice"`
-	CAPCodes         []string         `yaml:"capcodes"`
-	Multicast        []MulticastDest  `yaml:"multicast"`
-	LocalAudio       bool             `yaml:"localaudio"`
-	LocalAudioDevice string           `yaml:"localaudiodevice"`
-	LocalAudioRate   int              `yaml:"localaudiorate"`
-	TTSReplacements  []TTSReplacement `yaml:"ttsreplacements"`
+	SpeakContent  bool     `yaml:"speakcontent"`
+	SoremOnly     bool     `yaml:"soremonly"`
+	StripComments bool     `yaml:"stripcomments"`
+	Language      string   `yaml:"language"`
+	Voice         string   `yaml:"voice"`
+	CAPCodes      []string `yaml:"capcodes"`
+	// GeoFences match alerts whose polygons or circles overlap any of these
+	// areas. Combined with CAPCodes as OR. If both are empty, all alerts match.
+	GeoFences        []naadfilter.GeoFence `yaml:"geofences"`
+	Multicast        []MulticastDest       `yaml:"multicast"`
+	LocalAudio       bool                  `yaml:"localaudio"`
+	LocalAudioDevice string                `yaml:"localaudiodevice"`
+	LocalAudioRate   int                   `yaml:"localaudiorate"`
+	TTSReplacements  []TTSReplacement      `yaml:"ttsreplacements"`
 }
 
 type TransmitChannel struct {
@@ -46,7 +80,25 @@ type TransmitChannel struct {
 	wg               *sync.WaitGroup
 }
 
+// Validate checks the channel's multicast and geofence settings.
+func (c ChannelConfig) Validate() error {
+	for _, dest := range c.Multicast {
+		if _, err := dest.ResolvePT(); err != nil {
+			return err
+		}
+	}
+	for _, fence := range c.GeoFences {
+		if err := fence.Validate(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func NewTransmitter(ch chan *naadxml.Alert, config ChannelConfig, ctx context.Context, wg *sync.WaitGroup, audioBackend AudioBackend) (*TransmitChannel, error) {
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
 	if config.LocalAudioRate == 0 {
 		config.LocalAudioRate = 48000
 	}
@@ -122,59 +174,80 @@ func (t *TransmitChannel) handleMessages() {
 	}
 }
 
-// sendToMulticast groups multicast destinations by payload type and sends
-// encoded audio to each group.
+// sendToMulticast groups multicast destinations by codec and sends encoded
+// audio to every group concurrently, so all destinations hear the alert at
+// the same time regardless of codec.
 func (t *TransmitChannel) sendToMulticast(pcm []int16, samplerate uint16) {
 	if len(t.Config.Multicast) == 0 {
 		return
 	}
 
-	// Group destinations by payload type
 	groups := make(map[uint8][]string)
 	for _, dest := range t.Config.Multicast {
-		groups[dest.PayloadType] = append(groups[dest.PayloadType], dest.Address)
+		pt, err := dest.ResolvePT()
+		if err != nil { // already validated at startup
+			log.Errorf("Skipping multicast destination - %v", err)
+			continue
+		}
+		groups[pt] = append(groups[pt], dest.Address)
 	}
 
+	var wg sync.WaitGroup
 	for pt, addrs := range groups {
-		if err := sendMulticast(addrs, pt, pcm, samplerate, t.ctx); err != nil {
-			log.Errorf("Multicast send failed for PT %d: %v", pt, err)
-		}
+		wg.Add(1)
+		go func(pt uint8, addrs []string) {
+			defer wg.Done()
+			if err := sendMulticast(addrs, pt, pcm, samplerate, t.ctx); err != nil {
+				log.Errorf("Multicast send failed for PT %d to %v: %v", pt, addrs, err)
+			}
+		}(pt, addrs)
 	}
+	wg.Wait()
 }
 
-// sendMulticast encodes audio for the given payload type and transmits via RTP.
+const ptimeMs = 20
+
+// sendMulticast encodes audio for the given payload type and transmits via
+// RTP. Codec sample rate and RTP clock rate come from mc-audio, which knows
+// that G.722 samples at 16 kHz but uses an 8 kHz RTP clock (RFC 3551).
 func sendMulticast(addresses []string, pt uint8, pcm []int16, samplerate uint16, ctx context.Context) error {
-	switch pt {
-	case 9: // G.722
-		mctx, err := rtptransmit.NewSender(addresses, 9, 16000, 20)
-		if err != nil {
-			return err
-		}
-		lowrate := resample.Downsample(pcm, int(samplerate)/16000)
-		encoder := go722.NewG722Encoder(go722.Rate64000, go722.G722_DEFAULT)
-		g722Buf := new(bytes.Buffer)
-		if err := binary.Write(g722Buf, binary.LittleEndian, lowrate); err != nil {
-			mctx.Stop()
-			return err
-		}
-		encoded := encoder.Encode(g722Buf.Bytes())
-		mctx.SendBuffer(bytes.NewBuffer(encoded), 160, ctx)
-		mctx.Stop()
-
-	case 0: // mu-law (G.711)
-		mctx, err := rtptransmit.NewSender(addresses, 0, 8000, 20)
-		if err != nil {
-			return err
-		}
-		lowrate := resample.Downsample(pcm, int(samplerate)/8000)
-		encoded := g711.ULawEncode(lowrate)
-		mctx.SendBuffer(bytes.NewBuffer(encoded), 160, ctx)
-		mctx.Stop()
-
-	default:
-		log.Warnf("Unsupported payload type %d -- skipping", pt)
+	if len(pcm) == 0 {
+		return nil
 	}
-	return nil
+	encoder, audioRate, err := rtptransmit.SelectEncoder(pt)
+	if err != nil {
+		return err
+	}
+	rates := rtptransmit.RatesForPT(pt)
+
+	codecPCM, err := resampleTo(pcm, int(samplerate), int(audioRate))
+	if err != nil {
+		return err
+	}
+	encoded := encoder.Encode(codecPCM)
+
+	// Bytes per packet = encoded bytes for one ptime worth of samples
+	samplesPerPacket := int(audioRate) * ptimeMs / 1000
+	packetBytes := samplesPerPacket * len(encoded) / len(codecPCM)
+
+	mctx, err := rtptransmit.NewSender(addresses, pt, uint16(rates.RTPRate), ptimeMs)
+	if err != nil {
+		return err
+	}
+	defer mctx.Stop()
+	return mctx.SendBuffer(bytes.NewBuffer(encoded), packetBytes, ctx)
+}
+
+// resampleTo converts PCM from one sample rate to another.
+func resampleTo(pcm []int16, from, to int) ([]int16, error) {
+	if from == to {
+		return pcm, nil
+	}
+	rc, err := resample.NewRateConverter(float64(from), float64(to))
+	if err != nil {
+		return nil, fmt.Errorf("could not resample %d -> %d: %v", from, to, err)
+	}
+	return rc.Process(pcm), nil
 }
 
 // sendToLocalAudio resamples PCM audio to the local playback rate and writes

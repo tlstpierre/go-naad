@@ -28,7 +28,8 @@ capcodes:
   - "3518020"   # Scugog
   - "3518029"   # Uxbridge
 
-# Receiver location for geometric area matching (lat/lon in decimal degrees).
+# Receiver location (lat/lon in decimal degrees). Only used to flag alerts as
+# "local" in the console output; per-channel routing uses channel geofences.
 lat: 44.10747
 lon: -78.95514
 
@@ -65,18 +66,28 @@ channels:
     # Override the global TTS voice for this channel (optional)
     # voice: en_US-lessac-medium
 
-    # Geographic filter: only announce alerts matching these CAP codes.
-    # Omit to announce all alerts regardless of location.
+    # Geographic filter. An alert is announced if it matches ANY CAP code
+    # (prefix match, so "35" = all of Ontario) OR if any polygon/circle in
+    # the alert overlaps ANY geofence (point + radius in km). Alerts that
+    # carry only geocodes can only match on CAP codes.
+    # Omit both to announce all alerts regardless of location.
     capcodes:
       - "3518020"
       - "3518029"
+    geofences:
+      - lat: 44.1077013162553
+        lon: -78.95523247860514
+        radiuskm: 20
 
-    # RTP multicast destinations. Each specifies an address and payload type.
-    #   Payload type 9  = G.722 (16 kHz, 64 kbps)
-    #   Payload type 0  = mu-law / G.711 (8 kHz)
+    # RTP multicast destinations. Each specifies an address and codec:
+    #   g722 = G.722 (16 kHz audio, 64 kbps, RTP payload type 9)
+    #   pcmu = G.711 mu-law (8 kHz, payload type 0)
+    #   pcma = G.711 A-law (8 kHz, payload type 8)
+    # Destinations with different codecs are sent simultaneously.
+    # (The older "payloadtype: N" form is still accepted.)
     multicast:
       - address: "[FF05:0:0:0:0:0:1:1010]:5004"
-        payloadtype: 9
+        codec: g722
 
     # Local audio output (requires -tags localaudio build).
     # Disabled by default -- safe for headless servers.
@@ -102,7 +113,7 @@ channels:
     stripcomments: true
     multicast:
       - address: "239.1.2.3:5006"
-        payloadtype: 0
+        codec: pcmu
 
   # A channel with both multicast and local audio output
   local-speaker:
@@ -111,9 +122,9 @@ channels:
     stripcomments: true
     multicast:
       - address: "[FF05:0:0:0:0:0:1:1010]:5008"
-        payloadtype: 9
+        codec: g722
       - address: "[FF05:0:0:0:0:0:1:1010]:5010"
-        payloadtype: 0
+        codec: pcmu
     localaudio: true
     localaudiodevice: ""      # Use system default audio device
     localaudiorate: 48000
@@ -126,4 +137,4 @@ channels:
     voice: fr_FR-siwis-medium
     multicast:
       - address: "[FF05:0:0:0:0:0:1:2010]:5004"
-        payloadtype: 9
+        codec: g722

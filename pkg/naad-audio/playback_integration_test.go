@@ -1,3 +1,7 @@
+//go:build integration
+
+// Integration tests: these talk to live NAAD/Pelmorex services, send real
+// audio, or run for minutes. Run with: go test -tags integration ./...
 package naadaudio
 
 import (
@@ -38,7 +42,7 @@ func TestMain(m *testing.M) {
 		SpeakContent:  true,
 		StripComments: true,
 		Multicast: []MulticastDest{
-			{Address: *testAddress, PayloadType: 9},
+			{Address: *testAddress, Codec: "g722"},
 		},
 		Language: "en-CA",
 	}
