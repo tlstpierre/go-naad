@@ -47,9 +47,7 @@ func (t *TransmitChannel) GetAudio(info *naadxml.AlertInfo) ([]int16, uint16, er
 	log.Warnf("No audio content found - using TTS")
 	var text string
 	if info.SoremLayer != nil {
-		if info.SoremLayer.BroadcastText != "" {
-			text = info.SoremLayer.BroadcastText
-		}
+		text = SpeechText(info.SoremLayer.BroadcastText, ttsReplacements(t.Config.TTSReplacements))
 	}
 
 	if text == "" {

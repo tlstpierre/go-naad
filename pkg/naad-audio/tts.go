@@ -6,6 +6,9 @@ import (
 	"strings"
 )
 
+// TTSReplacement rewrites text before it is spoken, usually to fix
+// pronunciation. From matches on word boundaries: "mm" replaces the unit in
+// "25 mm" or "25mm" but leaves "community" alone (see replaceWords).
 type TTSReplacement struct {
 	From string `yaml:"from"`
 	To   string `yaml:"to"`
@@ -21,33 +24,41 @@ var DefaultTTSReplacements = []TTSReplacement{
 	{"mm", "milli meters"},
 }
 
+// TTSText builds the spoken announcement for an alert without SOREM
+// broadcast text: a sentence naming the alert and its areas, the headline
+// and (if full) the description, prepared with SpeechText.
 func TTSText(info *naadxml.AlertInfo, full, stripcomment bool, replacements []TTSReplacement) string {
-	var text string
-
-	areas := make([]string, len(info.Area))
-	for i, v := range info.Area {
-		areas[i] = v.Description
+	areas := make([]string, 0, len(info.Area))
+	for _, v := range info.Area {
+		areas = append(areas, v.Description)
 	}
 	areaList := strings.Join(areas, ". ")
 
+	var lines []string
 	if info.ECLayer != nil {
-		text = fmt.Sprintf("Environment Canada %s for %s.  %s. ", info.ECLayer.AlertType, areaList, info.Headline)
+		lines = append(lines, fmt.Sprintf("Environment Canada %s for %s.", info.ECLayer.AlertType, areaList), info.Headline)
 	} else {
-		text = fmt.Sprintf("%s alert for %s. Urgency: %s, Severity: %s, %s.", info.Category[0], areaList, info.Urgency, info.Severity, info.Headline)
+		category := "Emergency"
+		if len(info.Category) > 0 {
+			category = string(info.Category[0])
+		}
+		lines = append(lines, fmt.Sprintf("%s alert for %s. Urgency: %s, Severity: %s.", category, areaList, info.Urgency, info.Severity), info.Headline)
 	}
 	if full {
 		description := info.Description
 		if stripcomment {
-			descParts := strings.Split(description, "###")
-			description = descParts[0]
+			description = StripComments(description)
 		}
-		text += description
+		lines = append(lines, description)
 	}
-	if len(replacements) == 0 {
-		replacements = DefaultTTSReplacements
+	return SpeechText(strings.Join(lines, "\n"), ttsReplacements(replacements))
+}
+
+// ttsReplacements returns the configured replacements, or the defaults if
+// none are configured.
+func ttsReplacements(configured []TTSReplacement) []TTSReplacement {
+	if len(configured) == 0 {
+		return DefaultTTSReplacements
 	}
-	for _, r := range replacements {
-		text = strings.ReplaceAll(text, r.From, r.To)
-	}
-	return text
+	return configured
 }

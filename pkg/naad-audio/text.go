@@ -2,6 +2,7 @@ package naadaudio
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 
@@ -58,7 +59,7 @@ func (o *textOutput) run(ctx context.Context, wg *sync.WaitGroup) {
 		case <-ctx.Done():
 			return
 		case text := <-o.queue:
-			if err := o.sender.Send(ctx, text); err != nil {
+			if err := o.sender.Send(ctx, text); err != nil && ctx.Err() == nil {
 				log.Errorf("Real-time text to %s failed: %v", o.address, err)
 			}
 		}
@@ -82,28 +83,26 @@ func (t *TransmitChannel) sendText(info *naadxml.AlertInfo) {
 	}
 }
 
+// maxDisplayAreas bounds the area line of the fallback display text; some
+// alerts list dozens of areas.
+const maxDisplayAreas = 5
+
 // AlertText is the display text sent to real-time text endpoints: the SOREM
-// broadcast text if present, otherwise the headline and description. It
-// starts with BEL for Severe and Extreme alerts and ends with a T.140 line
-// separator.
+// broadcast text if present, otherwise the headline, the affected areas and
+// the description, cleaned up for display (see DisplayText). It starts with
+// BEL for Severe and Extreme alerts and ends with a T.140 line separator.
 func AlertText(info *naadxml.AlertInfo, stripComments bool) string {
 	var text string
-	if info.SoremLayer != nil && strings.TrimSpace(info.SoremLayer.BroadcastText) != "" {
-		text = info.SoremLayer.BroadcastText
-	} else {
+	if info.SoremLayer != nil {
+		text = DisplayText(info.SoremLayer.BroadcastText)
+	}
+	if text == "" {
 		description := info.Description
 		if stripComments {
-			description, _, _ = strings.Cut(description, "###")
+			description = StripComments(description)
 		}
-		parts := []string{}
-		for _, p := range []string{info.Headline, description} {
-			if p = strings.TrimSpace(p); p != "" {
-				parts = append(parts, p)
-			}
-		}
-		text = strings.Join(parts, "\n")
+		text = DisplayText(strings.Join([]string{info.Headline, areaSummary(info, maxDisplayAreas), description}, "\n"))
 	}
-	text = strings.TrimSpace(text)
 	if text == "" {
 		return ""
 	}
@@ -112,4 +111,19 @@ func AlertText(info *naadxml.AlertInfo, stripComments bool) string {
 		text = t140.BEL + text
 	}
 	return text
+}
+
+// areaSummary lists the alert's area descriptions, at most max of them
+// ("A, B and 3 more"); max <= 0 lists them all.
+func areaSummary(info *naadxml.AlertInfo, max int) string {
+	var areas []string
+	for _, a := range info.Area {
+		if d := strings.TrimSpace(a.Description); d != "" {
+			areas = append(areas, d)
+		}
+	}
+	if max > 0 && len(areas) > max {
+		return fmt.Sprintf("%s and %d more", strings.Join(areas[:max], ", "), len(areas)-max)
+	}
+	return strings.Join(areas, ", ")
 }

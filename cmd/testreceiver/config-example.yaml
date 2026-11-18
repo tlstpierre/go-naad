@@ -109,7 +109,10 @@ channels:
     localaudiorate: 48000     # Playback sample rate in Hz
 
     # Custom TTS pronunciation replacements (optional).
-    # Applied in order. Defaults are used when this list is omitted.
+    # Applied in order, after the text is cleaned up for speech. "from"
+    # matches whole words only: "mm" replaces the unit in "25 mm" or
+    # "25mm" but leaves "community" alone. Defaults are used when this
+    # list is omitted (a configured list replaces them entirely).
     # ttsreplacements:
     #   - from: ".ca"
     #     to: " dot see aay "

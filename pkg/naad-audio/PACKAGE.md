@@ -34,6 +34,19 @@ The main audio output channel. Created per configured channel name (e.g.,
 - TTS voice override and configurable pronunciation replacements
 - Cooldown timers for alert/announce tones
 
+### Text cleanup (clean.go)
+
+Alert text is normalized once by `CleanText` (line endings, control
+characters including stray BEL, whitespace runs, blank lines), then adapted
+per output medium:
+
+- `DisplayText` - one line per line, no blank lines (real-time text, signs)
+- `SpeechText` - lines joined into sentences, repeated punctuation
+  collapsed, pronunciation replacements applied on word boundaries (TTS)
+
+`AlertText` (real-time text) and `TTSText` / SOREM broadcast text (speech)
+both go through these.
+
 ### ChannelConfig (delivery.go)
 
 YAML-configurable per-channel settings:
