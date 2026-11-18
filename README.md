@@ -76,11 +76,13 @@ Key configuration areas:
 - **Stream servers**: TCP and UDP sources to receive alerts from.
 - **Archive servers**: HTTP servers to fetch referenced/missed alerts.
 - **CAP codes**: Geographic area codes to filter for local alerts.
-- **Lat/Lon**: Receiver location for geometric area matching.
+- **Lat/Lon**: Receiver location, used to flag "local" alerts in console output.
 - **Web listen**: Address and port for the HTTP server.
 - **TTS config**: Piper TTS engine path, voice, and sample rate.
-- **Channels**: Named audio output channels, each with language, CAP code
-  filters, codec selection, and multicast addresses.
+- **Channels**: Named audio output channels, each with language, location
+  filters (CAP codes and/or `geofences` of lat/lon/radiuskm, matched as OR
+  against alert polygons and circles), and multicast destinations with a
+  `codec` of `g722`, `pcmu` or `pcma`.
 
 ### Running
 
@@ -93,7 +95,25 @@ go run ./cmd/testreceiver/ -config myconfig.yaml -loglevel debug
 
 # With log output to file
 go run ./cmd/testreceiver/ -config myconfig.yaml -logfile /var/log/naad.log
+
+# Validate a config file and exit (useful before restarting a deployment)
+testreceiver -config /etc/alerts/eas.conf -check
 ```
+
+### Testing
+
+```sh
+# Unit tests: fast, no network, safe for CI and pre-flight checks
+go test -race ./...
+
+# Integration tests: connect to live Pelmorex stream/archive servers, fetch
+# external resources, run TTS (Piper at /home/tim/piper) and send audio to
+# multicast. Several run for 5-10 minutes; select with -run.
+go test -tags integration -run TestTCP -v ./pkg/naad-socket/
+```
+
+Integration tests live in `*_integration_test.go` files behind the
+`integration` build tag.
 
 ### Test Data
 

@@ -1,3 +1,7 @@
+//go:build integration
+
+// Integration tests: these talk to live NAAD/Pelmorex services, send real
+// audio, or run for minutes. Run with: go test -tags integration ./...
 package naadweb
 
 import (

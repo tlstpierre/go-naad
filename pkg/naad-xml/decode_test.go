@@ -89,35 +89,23 @@ func TestSample3(t *testing.T) {
 func TestSample4(t *testing.T) {
 	data, err := os.ReadFile(*testData + "Sample4_CAPCP_with_External_Large_Audio_File.XML")
 	if err != nil {
-		log.Fatalf("Could not open test XML file - %v", err)
+		t.Fatalf("Could not open test XML file - %v", err)
 	}
 	var testAlert Alert
-	err = xml.Unmarshal(data, &testAlert)
-	if err != nil {
-		t.Fail()
-		t.Errorf("Problem decoding sample 2 - %v", err)
-		return
+	if err := xml.Unmarshal(data, &testAlert); err != nil {
+		t.Fatalf("Problem decoding sample 4 - %v", err)
 	}
-	for _, alert := range testAlert.Info {
-		for _, resource := range alert.Resources {
+	var external int
+	for _, info := range testAlert.Info {
+		for _, resource := range info.Resources {
 			if resource.Content == nil {
-				err := resource.Fetch()
-				if err != nil {
-					t.Fail()
-					t.Logf("Problem fetching resource %s - %v", resource.Description, err)
-					continue
-				}
-				err = resource.SaveFile("./")
-				if err != nil {
-					t.Fail()
-					t.Logf("Problem saving resource %s - %v", resource.Description, err)
-				} else {
-					t.Logf("Decoded %s", resource.Description)
-				}
+				external++
 			}
 		}
 	}
-	//spew.Dump(testAlert)
+	if external == 0 {
+		t.Error("expected sample 4 to reference external resources")
+	}
 }
 
 func TestSample7(t *testing.T) {
