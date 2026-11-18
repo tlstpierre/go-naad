@@ -8,18 +8,93 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/tlstpierre/go-naad/pkg/naad-xml"
 	"io"
+	"math/rand"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 type TCPReceiverOptions struct {
 	ConnectTimeout time.Duration `yaml:"connecttimeout"`
+	// ReadTimeout is how long the connection may go without receiving any
+	// data before it is considered dead. NAAD sends a heartbeat every
+	// minute, so the default of 150s tolerates one missed heartbeat.
+	ReadTimeout time.Duration `yaml:"readtimeout"`
+	// MinBackoff and MaxBackoff bound the reconnect delay. The delay
+	// doubles on every connection that fails or drops before becoming
+	// stable, and resets once a connection is stable.
+	MinBackoff time.Duration `yaml:"minbackoff"`
+	MaxBackoff time.Duration `yaml:"maxbackoff"`
+	// StableAfter is how long a connection must stay up, having delivered
+	// at least one message, before the backoff resets.
+	StableAfter time.Duration `yaml:"stableafter"`
+}
+
+func (o *TCPReceiverOptions) setDefaults() {
+	if o.ConnectTimeout == 0 {
+		o.ConnectTimeout = time.Minute
+	}
+	if o.ReadTimeout == 0 {
+		o.ReadTimeout = 150 * time.Second
+	}
+	if o.MinBackoff == 0 {
+		o.MinBackoff = 5 * time.Second
+	}
+	if o.MaxBackoff == 0 {
+		o.MaxBackoff = 5 * time.Minute
+	}
+	if o.StableAfter == 0 {
+		o.StableAfter = time.Minute
+	}
+}
+
+// deadlineReader refreshes the read deadline before every read so that a
+// silent (half-open) connection eventually errors out instead of blocking
+// forever. It also records whether any data has arrived.
+type deadlineReader struct {
+	conn    net.Conn
+	timeout time.Duration
+	gotData *atomic.Bool
+}
+
+func (d deadlineReader) Read(p []byte) (int, error) {
+	if err := d.conn.SetReadDeadline(time.Now().Add(d.timeout)); err != nil {
+		return 0, err
+	}
+	n, err := d.conn.Read(p)
+	if n > 0 {
+		d.gotData.Store(true)
+	}
+	return n, err
+}
+
+// nextBackoff doubles the delay up to max.
+func nextBackoff(current, min, max time.Duration) time.Duration {
+	if current < min {
+		return min
+	}
+	next := current * 2
+	if next > max {
+		next = max
+	}
+	return next
+}
+
+// jitter spreads the delay by +/-20% so multiple receivers don't retry in
+// lockstep.
+func jitter(d time.Duration) time.Duration {
+	spread := int64(d) / 5
+	if spread <= 0 {
+		return d
+	}
+	return d + time.Duration(rand.Int63n(2*spread)-spread)
 }
 
 type TCPReceiver struct {
 	ctx        context.Context
 	cancelFunc context.CancelFunc
+	socketMu   sync.Mutex
 	socket     net.Conn
 	host       string
 	handler    func(*naadxml.Alert) error
@@ -35,9 +110,7 @@ func NewTCPReceiver(host string, opts ...TCPReceiverOptions) (*TCPReceiver, erro
 	if len(opts) > 0 {
 		options = opts[0]
 	}
-	if options.ConnectTimeout == 0 {
-		options.ConnectTimeout = time.Minute
-	}
+	options.setDefaults()
 	receiver := &TCPReceiver{
 		host:    host,
 		ctx:     context.Background(),
@@ -59,9 +132,23 @@ func (r *TCPReceiver) Connect() error {
 }
 
 func (r *TCPReceiver) Disconnect() {
-	r.socket.Close()
 	r.cancelFunc()
+	r.closeSocket() // unblock any pending read
 	r.wg.Wait()
+}
+
+func (r *TCPReceiver) currentSocket() net.Conn {
+	r.socketMu.Lock()
+	defer r.socketMu.Unlock()
+	return r.socket
+}
+
+func (r *TCPReceiver) closeSocket() {
+	r.socketMu.Lock()
+	defer r.socketMu.Unlock()
+	if r.socket != nil {
+		r.socket.Close()
+	}
 }
 
 func (r *TCPReceiver) SetHandler(handler func(*naadxml.Alert) error) {
@@ -85,44 +172,73 @@ func isConnectionError(err error) bool {
 func (r *TCPReceiver) listen() {
 	defer r.wg.Done()
 
-	backoff := 5 * time.Second
-	const maxBackoff = 2 * time.Minute
+	backoff := r.options.MinBackoff
+	failures := 0
 
 	for {
 		// Check for shutdown before starting a decode cycle
 		select {
 		case <-r.ctx.Done():
 			log.Infof("Closing connection to %s", r.host)
-			r.socket.Close()
+			r.closeSocket()
 			return
 		default:
 		}
 
-		decoder := xml.NewDecoder(r.socket)
-		if err := r.decodeLoop(decoder); err != nil {
-			r.socket.Close()
+		connectedAt := time.Now()
+		var gotData atomic.Bool
+		conn := r.currentSocket()
+		decoder := xml.NewDecoder(deadlineReader{conn: conn, timeout: r.options.ReadTimeout, gotData: &gotData})
+		err := r.decodeLoop(decoder)
+		conn.Close()
+		if err == nil { // context cancelled
+			continue
+		}
+		uptime := time.Since(connectedAt).Round(time.Millisecond)
 
-			if !isConnectionError(err) {
-				log.Errorf("XML parsing error on %s (reconnecting): %v", r.host, err)
+		// A connection that was up for a while and delivered data was
+		// healthy: start over at the minimum delay. Anything else (e.g. the
+		// server accepting then immediately closing) counts as a failure so
+		// we back off instead of hammering the server.
+		if gotData.Load() && uptime >= r.options.StableAfter {
+			backoff = r.options.MinBackoff
+			failures = 0
+		} else {
+			failures++
+		}
+
+		var netErr net.Error
+		switch {
+		case errors.As(err, &netErr) && netErr.Timeout():
+			log.Warnf("No data from %s for %s, connection presumed dead (up %s)", r.host, r.options.ReadTimeout, uptime)
+		case isConnectionError(err):
+			log.Warnf("Connection to %s lost after %s: %v", r.host, uptime, err)
+		default:
+			log.Errorf("XML parsing error on %s after %s (reconnecting): %v", r.host, uptime, err)
+		}
+
+		// Keep retrying (with backoff) until a dial succeeds
+		for {
+			delay := jitter(backoff)
+			if failures > 0 {
+				log.Infof("Reconnecting to %s in %s (%d consecutive failures)", r.host, delay.Round(time.Second), failures)
 			} else {
-				log.Warnf("Connection to %s lost: %v", r.host, err)
+				log.Infof("Reconnecting to %s in %s", r.host, delay.Round(time.Second))
 			}
-
-			// Backoff and reconnect
-			log.Infof("Reconnecting to %s in %s", r.host, backoff)
 			select {
-			case <-time.After(backoff):
+			case <-time.After(delay):
 			case <-r.ctx.Done():
 				return
 			}
-
+			if failures > 0 {
+				backoff = nextBackoff(backoff, r.options.MinBackoff, r.options.MaxBackoff)
+			}
 			if err := r.dial(); err != nil {
 				log.Errorf("Failed to reconnect to %s: %v", r.host, err)
-				backoff = min(backoff*2, maxBackoff)
+				failures++
 				continue
 			}
-			// Successful reconnect -- reset backoff
-			backoff = 5 * time.Second
+			break
 		}
 	}
 }
@@ -137,7 +253,14 @@ func (r *TCPReceiver) dial() error {
 	if err != nil {
 		return fmt.Errorf("could not dial %s - %v", r.host, err)
 	}
+	r.socketMu.Lock()
 	r.socket = conn
+	r.socketMu.Unlock()
+	// Disconnect may have run while we were dialling
+	if r.ctx.Err() != nil {
+		conn.Close()
+		return r.ctx.Err()
+	}
 	log.Infof("Connected to %s", r.host)
 	return nil
 }
