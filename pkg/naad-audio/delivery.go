@@ -10,6 +10,7 @@ import (
 	"gitlab.com/timstpierre/mc-audio/pkg/mc-transmit"
 	"gitlab.com/timstpierre/mc-audio/pkg/piper-tts"
 	"gitlab.com/timstpierre/mc-audio/pkg/resample"
+	"gitlab.com/timstpierre/mc-audio/pkg/t140"
 	"strings"
 	"sync"
 	"time"
@@ -17,10 +18,14 @@ import (
 
 type MulticastDest struct {
 	Address string `yaml:"address"`
-	// Codec is one of g722, pcmu (G.711 mu-law) or pcma (G.711 A-law).
+	// Codec is an audio codec (g722, pcmu, pcma) or a real-time text
+	// codec: t140 (plain RFC 4103 text) or t140red (with RFC 2198
+	// redundancy, RFC 4103 recommended).
 	Codec string `yaml:"codec,omitempty"`
-	// PayloadType is the legacy way to pick a codec by static RTP payload
-	// type (0, 8 or 9). Deprecated: use Codec.
+	// PayloadType: for audio codecs this is the legacy way to pick a
+	// codec by static RTP payload type (0, 8 or 9) -- use Codec instead.
+	// For text codecs it overrides the dynamic payload type (96-127;
+	// defaults 98 for t140 and 100 for t140red).
 	PayloadType *uint8 `yaml:"payloadtype,omitempty"`
 }
 
@@ -30,12 +35,33 @@ var codecPayloadTypes = map[string]uint8{
 	"g722": 9,
 }
 
-// ResolvePT returns the static RTP payload type for this destination.
+var textCodecPayloadTypes = map[string]uint8{
+	"t140":    t140.DefaultPT,
+	"t140red": t140.DefaultREDPT,
+}
+
+// IsText reports whether this destination carries real-time text.
+func (d MulticastDest) IsText() bool {
+	_, ok := textCodecPayloadTypes[strings.ToLower(d.Codec)]
+	return ok
+}
+
+// ResolvePT returns the RTP payload type for this destination.
 func (d MulticastDest) ResolvePT() (uint8, error) {
+	codec := strings.ToLower(d.Codec)
+	if pt, ok := textCodecPayloadTypes[codec]; ok {
+		if d.PayloadType != nil {
+			pt = *d.PayloadType
+			if pt < 96 || pt > 127 {
+				return 0, fmt.Errorf("multicast %s: %s payloadtype %d must be dynamic (96-127)", d.Address, codec, pt)
+			}
+		}
+		return pt, nil
+	}
 	if d.Codec != "" {
-		pt, ok := codecPayloadTypes[strings.ToLower(d.Codec)]
+		pt, ok := codecPayloadTypes[codec]
 		if !ok {
-			return 0, fmt.Errorf("multicast %s: unknown codec %q (use g722, pcmu or pcma)", d.Address, d.Codec)
+			return 0, fmt.Errorf("multicast %s: unknown codec %q (use g722, pcmu, pcma, t140 or t140red)", d.Address, d.Codec)
 		}
 		if d.PayloadType != nil && *d.PayloadType != pt {
 			return 0, fmt.Errorf("multicast %s: codec %q conflicts with payloadtype %d", d.Address, d.Codec, *d.PayloadType)
@@ -76,6 +102,7 @@ type TransmitChannel struct {
 	speaker          *pipertts.Speaker
 	playbackDev      LocalPlayback
 	alertChan        chan *naadxml.Alert
+	textOutputs      []*textOutput
 	ctx              context.Context
 	wg               *sync.WaitGroup
 }
@@ -124,6 +151,16 @@ func NewTransmitter(ch chan *naadxml.Alert, config ChannelConfig, ctx context.Co
 			tx.playbackDev = dev
 		}
 	}
+	for _, dest := range config.Multicast {
+		if !dest.IsText() {
+			continue
+		}
+		out, err := newTextOutput(dest, ctx, wg)
+		if err != nil {
+			return nil, err
+		}
+		tx.textOutputs = append(tx.textOutputs, out)
+	}
 	wg.Add(1)
 	go tx.handleMessages()
 	return tx, nil
@@ -158,6 +195,10 @@ func (t *TransmitChannel) handleMessages() {
 							continue
 						}
 					}
+					// Text goes out immediately and independently of
+					// audio, so displays update even if TTS fails.
+					t.sendText(alertInfo)
+
 					audio, samplerate, err := t.GetAudio(alertInfo)
 					if err != nil {
 						log.Errorf("Problem getting audio for alert %s language %s - %v", msg.Identifier, alertInfo.Language, err)
@@ -184,6 +225,9 @@ func (t *TransmitChannel) sendToMulticast(pcm []int16, samplerate uint16) {
 
 	groups := make(map[uint8][]string)
 	for _, dest := range t.Config.Multicast {
+		if dest.IsText() {
+			continue
+		}
 		pt, err := dest.ResolvePT()
 		if err != nil { // already validated at startup
 			log.Errorf("Skipping multicast destination - %v", err)

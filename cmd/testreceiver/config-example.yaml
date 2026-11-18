@@ -85,9 +85,22 @@ channels:
     #   pcma = G.711 A-law (8 kHz, payload type 8)
     # Destinations with different codecs are sent simultaneously.
     # (The older "payloadtype: N" form is still accepted.)
+    #
+    # Real-time text (RFC 4103 / ITU-T T.140) for displays, signs, panels
+    # and gateways uses the same list:
+    #   t140    = plain UTF-8 text, PT 98 (simplest for microcontrollers)
+    #   t140red = text with RFC 2198 redundancy, PT 100 (recovers from up
+    #             to 2 consecutive lost packets; RFC 4103 recommended)
+    # payloadtype overrides the PT (must be dynamic, 96-127). Use a group
+    # address of its own so text-only endpoints don't receive audio; the
+    # port may be shared with audio (mc-receive filters by group).
+    # Content: SOREM broadcast text, else headline + description; BEL
+    # (0x07) first for Severe/Extreme alerts; ends with U+2028.
     multicast:
       - address: "[FF05:0:0:0:0:0:1:1010]:5004"
         codec: g722
+      - address: "[FF05:0:0:0:0:0:1:1005]:5004"
+        codec: t140red
 
     # Local audio output (requires -tags localaudio build).
     # Disabled by default -- safe for headless servers.

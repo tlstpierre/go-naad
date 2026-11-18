@@ -82,7 +82,8 @@ Key configuration areas:
 - **Channels**: Named audio output channels, each with language, location
   filters (CAP codes and/or `geofences` of lat/lon/radiuskm, matched as OR
   against alert polygons and circles), and multicast destinations with a
-  `codec` of `g722`, `pcmu` or `pcma`.
+  `codec` of `g722`, `pcmu` or `pcma` for audio, or `t140` / `t140red` for
+  RFC 4103 real-time text of the alert (see `config-example.yaml`).
 
 ### Running
 
