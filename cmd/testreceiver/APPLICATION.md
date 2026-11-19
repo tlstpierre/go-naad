@@ -18,8 +18,9 @@ and optionally announces them via RTP multicast audio.
                    Archive fetch                     Per-channel:
                    (heartbeat refs)                   - TTS or broadcast audio
                                                       - CAAS tone / chime
-                                                      - G.722 or mu-law
+                                                      - G.722 or G.711
                                                       - RTP multicast
+                                                      - T.140 text
 ```
 
 ## Files
@@ -66,15 +67,24 @@ Default location: Scugog/Uxbridge, Ontario (CAP codes 3518020, 3518029).
 
 Receives alerts from the receiver group channel, adds them to the cache,
 calls `ProcessAlert()`, routes to the announcer, and (intended but currently
-bypassed) sends info blocks to the display channel.
+bypassed) sends info blocks to the display channel. It gives the announcer a
+reference lookup (`Cache.Lookup`, 45 s timeout) for routing stand-downs.
 
 ### announcer.go
 
 Creates one `Announcer` per configured channel. Each announcer has:
-- Its own `TransmitChannel` for audio output.
+- Its own `TransmitChannel` for audio and real-time text output.
 - A `UpdateSuppressor` with a 2-hour window to avoid re-announcing the same
   alert.
-- CAP code filtering: only announces alerts matching the channel's codes.
+- Location filtering (`matchChannel`): a channel with no CAP codes or
+  geofence takes everything. Otherwise an alert matches if any of its areas
+  in effect match the channel's CAP codes or geofence. An Update or Cancel
+  that doesn't match on its own also goes to a channel if any message it
+  references matched there (looked up in the cache or the archive), so a
+  stand-down reaches every channel that had the alert. After a restart this
+  can repeat a stand-down, which is better than missing one.
+- Each channel gets only the blocks that concern it: those in effect, or for
+  a stand-down by reference its ended and all-clear blocks.
 
 ### display.go
 

@@ -49,10 +49,18 @@ Two-phase operation to avoid holding the write lock during network I/O:
 - **Phase 1 (under lock):** Stores the raw alert. For updates, identifies
   which referenced originals are missing from cache and applies updates for
   those already present. For new alerts, creates a fresh `AlertHistory` entry.
+  Updates and Cancels both count; references already cached are not
+  fetched again.
 - **Phase 2 (outside lock):** Fetches missing originals via the shared
   `FetchTracker`, which deduplicates requests that may also come from the
   receiver group's heartbeat reference fetcher. Re-acquires the lock briefly
   to store each fetched result and link the update chain.
+
+### Lookup(ctx, reference) -> (Alert, error)
+
+Returns a referenced message from the cache, or fetches it from the archive
+(and caches it). The announcer uses this to route a stand-down to the
+channels its original matched, even after a restart.
 
 ### Get(id) -> (Alert, AlertHistory)
 

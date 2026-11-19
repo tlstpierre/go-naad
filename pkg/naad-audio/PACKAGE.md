@@ -47,6 +47,16 @@ per output medium:
 `AlertText` (real-time text) and `TTSText` / SOREM broadcast text (speech)
 both go through these.
 
+### Real-time text (text.go)
+
+A multicast destination with codec `t140` or `t140red` gets the alert as
+RFC 4103 real-time text instead of audio, sent by its own goroutine so text
+and audio never wait on each other. `AlertText` is the SOREM broadcast text
+if present, otherwise the headline, up to five areas ("A, B and 3 more")
+and the description, ending with a line separator. It starts with BEL for a
+Severe or Extreme block in effect. A stand-down (an ended or all-clear
+block, or a Cancel) never has a BEL.
+
 ### ChannelConfig (delivery.go)
 
 YAML-configurable per-channel settings:
@@ -56,7 +66,7 @@ YAML-configurable per-channel settings:
 | `SpeakContent` | Include the full description text in TTS, not just the headline |
 | `SoremOnly` | Only announce alerts that have SOREM broadcast text |
 | `StripComments` | Remove `###`-delimited comments from description before TTS |
-| `Multicast` | List of `MulticastDest` (address + payload type) for RTP output |
+| `Multicast` | List of `MulticastDest` (address, `codec` of `g722`/`pcmu`/`pcma` for audio or `t140`/`t140red` for text, optional payload type) for RTP output |
 | `LocalAudio` | Enable local soundcard output via mc-audio |
 | `LocalAudioDevice` | OS-specific device name/ID (empty = system default) |
 | `LocalAudioRate` | Local playback sample rate (default 48000) |
